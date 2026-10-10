@@ -2,7 +2,9 @@
 
 簡潔可愛的 OLED 吊飾控制網頁。奶油白、淡桃色、薄荷綠；手機優先，桌面也能使用。
 
-正式網址：https://bvlgarissk.github.io/my-little-companion/
+正式網址：https://quadcopteronline.org/
+
+網頁由 GitHub Pages 部署，Cloudflare 管理 DNS；`www.quadcopteronline.org` 轉到主網址。原 GitHub Pages 配對網址由平台轉址到新網域，吊飾密鑰不需更換。DNS 與移轉方式見[自訂域名說明](docs/custom-domain.md)。
 
 ## 這一版完成的功能
 

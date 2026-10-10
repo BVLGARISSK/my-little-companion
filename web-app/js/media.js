@@ -67,14 +67,18 @@ export function monochrome(rgba, {threshold=128, contrast=1, brightness=0, dithe
   return pixels;
 }
 
+export function imagePlacement(width,height,{zoom=1,cropX=.5,cropY=.5}={}) {
+  if(![width,height,zoom,cropX,cropY].every(Number.isFinite)||width<=0||height<=0||zoom<.1||zoom>3||cropX<0||cropX>1||cropY<0||cropY>1)throw new Error('縮放或位置設定無效');
+  const scale=Math.max(WIDTH/width,HEIGHT/height)*zoom,w=width*scale,h=height*scale;
+  return{x:(WIDTH-w)*cropX,y:(HEIGHT-h)*cropY,width:w,height:h};
+}
+
 export function sampleImage(source, options = {}) {
   const canvas=document.createElement('canvas'); canvas.width=WIDTH; canvas.height=HEIGHT;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   const w=source.videoWidth||source.naturalWidth||source.width, h=source.videoHeight||source.naturalHeight||source.height;
-  const zoom=options.zoom||1, baseW=w/h>2?h*2:w, baseH=baseW/2;
-  const sw=baseW/zoom,sh=baseH/zoom;
-  const sx=(w-sw)*(options.cropX??.5),sy=(h-sh)*(options.cropY??.5);
-  ctx.fillStyle='#000';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.drawImage(source,sx,sy,sw,sh,0,0,WIDTH,HEIGHT);
+  const placement=imagePlacement(w,h,options);
+  ctx.fillStyle='#000';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.drawImage(source,placement.x,placement.y,placement.width,placement.height);
   return packPixels(monochrome(ctx.getImageData(0,0,WIDTH,HEIGHT).data,options));
 }
 

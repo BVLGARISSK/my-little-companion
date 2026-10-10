@@ -35,14 +35,14 @@ function persist(immediate=false){
 document.addEventListener('visibilitychange',()=>{if(document.hidden)persist(true);});
 function addAsset(name,frames,fps){
   const asset={id:newId(),name:name.trim().slice(0,60)||'我的小作品',kind:frames.length>1?'animation':'image',frames:frames.map(f=>f.slice()),fps:frames.length>1?fps:1,created:Date.now()};
-  state.assets.push(asset);persist(true);renderLibrary();renderPlaylist();toast('收好了，作品已加入你的作品集。');return asset;
+  state.assets.push(asset);persist(true);renderLibrary();renderPlaylist();toast('作品已加入作品集。');return asset;
 }
 
 // Expressions are local previews until the user explicitly sends a command.
 for(const emotion of EMOTIONS){const b=document.createElement('button');b.className='emotion-button';b.dataset.emotion=emotion.id;b.setAttribute('aria-pressed',emotion.id===mood?'true':'false');b.innerHTML=`<svg viewBox="0 0 32 26" aria-hidden="true">${emotion.shape}</svg><span>${emotion.name}</span>`;b.onclick=()=>{mood=emotion.id;auto=false;$('emotion-auto').checked=false;renderMood();};$('emotion-grid').append(b);}
 function renderMood(){document.querySelectorAll('[data-emotion]').forEach(b=>{b.classList.toggle('active',b.dataset.emotion===mood);b.setAttribute('aria-pressed',String(b.dataset.emotion===mood));});$('mood-caption').textContent=EMOTIONS.find(e=>e.id===mood).caption;}
 renderMood();bind('emotion-auto',e=>{auto=e.target.checked;},'change');
-bind('emotion-apply',async()=>{await ble.command('SET_EMOTION',{emotion:mood,mode:auto?'auto':'manual'},'emotion');toast('心情已送給小伴，眨眼會繼續陪著你。');});
+bind('emotion-apply',async()=>{await ble.command('SET_EMOTION',{emotion:mood,mode:auto?'auto':'manual'},'emotion');toast('表情已套用，眨眼動畫會持續播放。');});
 
 // Image editor: all decoding and conversion stay on the current device.
 bind('import-photo',()=>$('photo-file').click());bind('close-photo',()=>{$('photo-editor').hidden=true;photo=null;});
@@ -114,7 +114,7 @@ bind('pixel-size',async e=>{const width=Number(e.target.value);if(width===pixel(
 bind('pixel-onion',drawPixel,'change');
 function appendFrame(copy){if(pixel().frames.length>=100)throw new Error('小動畫最多 100 格。');saveHistory();pixel().frames.splice(pixel().index+1,0,copy?pixel().frames[pixel().index].slice():new Uint8Array(pixel().width*pixel().height));pixel().index++;pixelPlaying=false;renderPixel();persist();}
 bind('frame-add',()=>appendFrame(false));bind('frame-copy',()=>appendFrame(true));
-bind('frame-delete',()=>{if(pixel().frames.length===1)throw new Error('至少保留一格，再畫一點可愛吧。');saveHistory();pixel().frames.splice(pixel().index,1);pixel().index=Math.min(pixel().index,pixel().frames.length-1);renderPixel();persist();});
+bind('frame-delete',()=>{if(pixel().frames.length===1)throw new Error('動畫至少需要保留一格。');saveHistory();pixel().frames.splice(pixel().index,1);pixel().index=Math.min(pixel().index,pixel().frames.length-1);renderPixel();persist();});
 function moveFrame(direction){const i=pixel().index,j=i+direction;if(j<0||j>=pixel().frames.length)return;saveHistory();[pixel().frames[i],pixel().frames[j]]=[pixel().frames[j],pixel().frames[i]];pixel().index=j;renderPixel();persist();}
 bind('frame-left',()=>moveFrame(-1));bind('frame-right',()=>moveFrame(1));bind('pixel-play',()=>{pixelPlaying=!pixelPlaying;pixelStart=performance.now();$('pixel-play').textContent=pixelPlaying?'■ 停止預覽':'▶ 預覽';if(!pixelPlaying)drawPixel();});
 bind('pixel-name',e=>{pixel().name=e.target.value;persist();},'input');bind('pixel-fps',e=>{pixel().fps=Number(e.target.value);persist();},'change');
@@ -122,21 +122,59 @@ bind('pixel-save',()=>{addAsset($('pixel-name').value,pixel().frames.map((_,i)=>
 
 // GIF and video conversion.
 bind('import-animation',()=>$('animation-file').click());bind('animation-file',async e=>{const file=e.target.files[0];e.target.value='';if(file)await loadAnimation(file);},'change');
-async function loadAnimation(file){
-  $('animation-editor').hidden=true;animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;
-  const info=await converter.load(file);$('animation-editor').hidden=false;$('source-video').hidden=info.kind!=='video';$('animation-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('animation-start').value=0;$('animation-start').max=info.duration.toFixed(2);$('animation-duration').value=Math.min(5,info.duration).toFixed(1);$('animation-info').textContent=`原始長度 ${info.duration.toFixed(1)} 秒 · ${info.kind==='gif'?'GIF':info.kind==='ola'?'OLA 作品':'影片'}`;
-  $('convert-animation').disabled=info.kind==='ola';
-  if(info.kind==='ola'){animation=converter.ola;$('save-animation').disabled=false;drawFrame($('animation-canvas'),animation.frames[0]);}
-  else if(info.kind==='video')drawFrame($('animation-canvas'),sampleImage($('source-video')));
-  else drawFrame($('animation-canvas'),new Uint8Array(FRAME_BYTES));
+let animationPlaying=false,animationStart=0,animationConverting=false,animationLoading=false,animationPreviewRunning=false,animationPreviewPending=false,animationPreviewRequest=0,animationPreviewPromise=Promise.resolve();
+function animationOptions(){return{zoom:Number($('animation-zoom').value),cropX:Number($('animation-x').value),cropY:Number($('animation-y').value),threshold:Number($('animation-threshold').value),dither:$('animation-dither').checked,invert:$('animation-invert').checked};}
+function setAnimationCrop(zoom=1){$('animation-zoom').value=zoom;$('animation-x').value=.5;$('animation-y').value=.5;$('animation-zoom-output').textContent=Number($('animation-zoom').value).toFixed(2)+'×';}
+function requestAnimationPreview(){
+  if(!converter.file||converter.ola||animationConverting||animationLoading)return animationPreviewPromise;
+  animationPreviewPending=true;++animationPreviewRequest;
+  if(animationPreviewRunning)return animationPreviewPromise;
+  animationPreviewRunning=true;
+  animationPreviewPromise=(async()=>{
+    while(animationPreviewPending&&!animationConverting&&!animationLoading){
+      animationPreviewPending=false;const request=animationPreviewRequest,generation=converter.generation;
+      try{
+        const frame=await converter.preview({time:Number($('animation-start').value),...animationOptions()});
+        if(request===animationPreviewRequest&&generation===converter.generation&&!animationConverting&&!animationLoading)drawFrame($('animation-canvas'),frame);
+      }catch(error){if(request===animationPreviewRequest&&generation===converter.generation&&!animationConverting&&!animationLoading)toast(error.message,true);}
+    }
+  })().finally(()=>{animationPreviewRunning=false;});
+  return animationPreviewPromise;
 }
-let animationPlaying=false,animationStart=0;
+function animationSettingsChanged(){
+  $('animation-zoom-output').textContent=Number($('animation-zoom').value).toFixed(2)+'×';
+  if(!converter.file||converter.ola||animationConverting||animationLoading)return;
+  animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;$('animation-info').textContent='裁切預覽 · 調整後請重新轉換動畫';
+  return requestAnimationPreview();
+}
+['start','duration','fps','zoom','x','y','threshold','dither','invert'].forEach(key=>bind('animation-'+key,animationSettingsChanged,'input'));
+bind('animation-reset',()=>{setAnimationCrop();return animationSettingsChanged();});
+bind('animation-fit',()=>{
+  const {width,height}=converter.dimensions;if(!width||!height)return;
+  const fit=Math.min(128/width,64/height)/Math.max(128/width,64/height);
+  setAnimationCrop(Math.max(.1,Math.floor(fit*100)/100));return animationSettingsChanged();
+});
+bind('source-video',()=>{
+  const video=$('source-video');if(!converter.file||converter.gif||converter.ola||animation||animationConverting||animationLoading||animationPreviewRunning||video.readyState<2)return;
+  drawFrame($('animation-canvas'),sampleImage(video,animationOptions()));
+},'timeupdate');
+async function loadAnimation(file){
+  if(animationConverting||animationLoading)throw new Error('正在處理影片，完成後再選擇其他檔案。');
+  animationLoading=true;animationPreviewPending=false;++animationPreviewRequest;$('import-animation').disabled=true;
+  $('animation-editor').hidden=true;animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;
+  try{
+    await animationPreviewPromise;const info=await converter.load(file);setAnimationCrop();$('animation-editor').hidden=false;$('source-video').hidden=info.kind!=='video';$('animation-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('animation-start').value=0;$('animation-start').max=info.duration.toFixed(2);$('animation-duration').value=Math.min(5,info.duration).toFixed(1);$('animation-info').textContent=`原始長度 ${info.duration.toFixed(1)} 秒 · ${info.kind==='gif'?'GIF':info.kind==='ola'?'OLA 作品':'影片'}`;
+    ['start','duration','fps','zoom','x','y','threshold','dither','invert','fit','reset'].forEach(key=>$('animation-'+key).disabled=info.kind==='ola');$('convert-animation').disabled=info.kind==='ola';
+    if(info.kind==='ola'){animation=converter.ola;$('save-animation').disabled=false;drawFrame($('animation-canvas'),animation.frames[0]);}
+  }finally{animationLoading=false;$('import-animation').disabled=false;}
+  await requestAnimationPreview();
+}
 bind('convert-animation',async()=>{
   if(!converter.file)throw new Error('先選一個 GIF 或影片吧。');
-  const b=$('convert-animation');b.disabled=true;$('save-animation').disabled=true;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';animation=null;$('convert-progress').hidden=false;
-  try{animation=await converter.convert({start:Number($('animation-start').value),duration:Number($('animation-duration').value),fps:Number($('animation-fps').value),threshold:Number($('animation-threshold').value),dither:$('animation-dither').checked,invert:$('animation-invert').checked},p=>$('convert-progress').value=p);
+  const b=$('convert-animation');animationConverting=true;animationPreviewPending=false;++animationPreviewRequest;b.disabled=true;$('animation-settings').disabled=true;$('import-animation').disabled=true;$('save-animation').disabled=true;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';animation=null;$('convert-progress').value=0;$('convert-progress').hidden=false;
+  try{await animationPreviewPromise;animation=await converter.convert({start:Number($('animation-start').value),duration:Number($('animation-duration').value),fps:Number($('animation-fps').value),...animationOptions()},p=>$('convert-progress').value=p);
     drawFrame($('animation-canvas'),animation.frames[0]);$('animation-info').textContent=`${animation.frames.length} 格 · ${(animation.frames.length/animation.fps).toFixed(1)} 秒 · ${formatBytes(animation.frames.length*FRAME_BYTES+21)}`;$('save-animation').disabled=false;toast('小動畫轉好了，看看預覽吧。');
-  }finally{b.disabled=false;$('convert-progress').hidden=true;}
+  }finally{animationConverting=false;$('animation-settings').disabled=false;$('import-animation').disabled=false;b.disabled=!!converter.ola;$('convert-progress').hidden=true;}
 });
 bind('animation-play',()=>{if(!animation)throw new Error('先把影片轉成小動畫吧。');animationPlaying=!animationPlaying;animationStart=performance.now();$('animation-play').textContent=animationPlaying?'■ 停止預覽':'▶ 預覽動畫';});
 bind('save-animation',()=>{if(!animation)throw new Error('先轉換動畫吧。');addAsset($('animation-name').value,animation.frames,animation.fps);});
@@ -173,14 +211,14 @@ async function connect(){
   try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;$('auth-key').value=saved||(pairingKey&&(!pairingDevice||pairingDevice===info.device_id)?pairingKey:'');$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
   finally{$('connect-device').disabled=false;$('connect-device').textContent='尋找小夥伴';}
 }
-async function authorize(){const key=$('auth-key').value.trim();await ble.authorize(key);if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);pairingKey=null;$('auth-key').value='';toast('連上你的小伴了，現在可以傳送作品。');}
+async function authorize(){const key=$('auth-key').value.trim();await ble.authorize(key);if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);pairingKey=null;$('auth-key').value='';toast('已連線並授權，可以傳送作品。');}
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{
   const {connected,authorized,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?'已授權':connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
   $('info-battery').textContent=Number.isFinite(info?.battery_mv)?`${(info.battery_mv/1000).toFixed(2)} V${Number.isFinite(info.battery_percent)?' · 約 '+info.battery_percent+'%':''}`:'—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
-  $('emotion-hint').textContent=authorized?'挑好心情後，按上方按鈕傳送給吊飾。':'可以先玩玩預覽，連線後再傳送給吊飾。';if(!connected)$('remote-library').replaceChildren();
+  $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
-bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});bind('resume-playlist',async()=>{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('小伴回到自己的播放清單了。');});
+bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});bind('resume-playlist',async()=>{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('已恢復播放清單。');});
 let syncing=false;
 function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=p;$('transfer-detail').textContent=detail;}
 async function transferAsset(asset){

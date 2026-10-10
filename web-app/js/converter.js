@@ -9,7 +9,7 @@ function seek(video,time){return new Promise((resolve,reject)=>{
 });}
 export class MediaConverter{
   constructor(video){this.video=video;this.generation=0;}
-  clear(){this.generation++;if(this.url)URL.revokeObjectURL(this.url);this.url=null;this.gif=null;this.ola=null;this.file=null;this.video.pause();this.video.removeAttribute('src');this.video.load();}
+  clear(){this.generation++;if(this.url)URL.revokeObjectURL(this.url);this.url=null;this.gif=null;this.gifPreview=null;this.ola=null;this.file=null;this.video.pause();this.video.removeAttribute('src');this.video.load();}
   async load(file){
     this.clear();this.file=file;
     if(file.size>40*1024*1024)throw new Error('請選 40MB 以下的短影片或 GIF。');
@@ -32,7 +32,44 @@ export class MediaConverter{
       this.video.addEventListener('loadeddata',done,{once:true});this.video.addEventListener('error',bad,{once:true});this.video.load();
     });
     if(!Number.isFinite(this.video.duration)||this.video.duration<=0)throw new Error('無法讀取影片長度');
-    this.duration=this.video.duration;return{duration:this.duration,kind:'video'};
+    this.duration=this.video.duration;this.videoNeedsSeek=true;return{duration:this.duration,kind:'video'};
+  }
+  get dimensions(){return this.gif?{width:this.gif.lsd.width,height:this.gif.lsd.height}:{width:this.video.videoWidth,height:this.video.videoHeight};}
+  gifSourceAt(time){
+    if(!this.gifPreview||time<this.gifPreview.start){
+      const canvas=document.createElement('canvas');canvas.width=this.gif.lsd.width;canvas.height=this.gif.lsd.height;
+      this.gifPreview={canvas,ctx:canvas.getContext('2d',{willReadFrequently:true}),patch:document.createElement('canvas'),index:-1,start:0,end:0,previous:null,restore:null};
+    }
+    const p=this.gifPreview;
+    while(p.index+1<this.gifFrames.length&&time>=p.end){
+      if(p.previous?.disposalType===2){const d=p.previous.dims;p.ctx.clearRect(d.left,d.top,d.width,d.height);}
+      else if(p.previous?.disposalType===3&&p.restore)p.ctx.putImageData(p.restore,0,0);
+      const frame=decompressFrame(this.gifFrames[++p.index],this.gif.gct,true);
+      p.restore=frame.disposalType===3?p.ctx.getImageData(0,0,p.canvas.width,p.canvas.height):null;
+      p.patch.width=frame.dims.width;p.patch.height=frame.dims.height;
+      p.patch.getContext('2d').putImageData(new ImageData(frame.patch,frame.dims.width,frame.dims.height),0,0);
+      p.ctx.drawImage(p.patch,frame.dims.left,frame.dims.top);
+      p.start=p.end;p.end+=this.delays[p.index]/1000;p.previous=frame;
+    }
+    return p.canvas;
+  }
+  async preview({time=0,...options}={}){
+    if(this.ola)return this.ola.frames[Math.min(this.ola.frames.length-1,Math.max(0,Math.floor(time*this.ola.fps)))];
+    if(!this.file)throw new Error('先選一個 GIF 或影片');
+    time=Math.max(0,Math.min(this.duration-.001,time));
+    const generation=this.generation;
+    if(this.gif)return sampleImage(this.gifSourceAt(time),options);
+    this.video.pause();await this.seekVideo(time);
+    if(generation!==this.generation)throw new Error('已選擇另一個檔案');
+    return sampleImage(this.video,options);
+  }
+  async seekVideo(time){
+    // A video loaded while the editor is hidden needs a real seek before canvas sampling.
+    if(this.videoNeedsSeek){
+      const warm=time<=this.duration/2?Math.max(0,Math.min(this.duration-.001,time+.01)):Math.max(0,time-.01);
+      await seek(this.video,warm);this.videoNeedsSeek=false;
+    }
+    await seek(this.video,time);
   }
   async convert({start=0,duration=5,fps=8,...options},progress=()=>{}){
     const generation=this.generation;
@@ -59,7 +96,7 @@ export class MediaConverter{
       this.video.pause();
       for(let i=0;i<count;i++){
         if(generation!==this.generation)throw new Error('已選擇另一個檔案');
-        await seek(this.video,Math.min(this.duration-.001,start+i/fps));frames.push(sampleImage(this.video,options));progress((i+1)/count);await pause();
+        await this.seekVideo(Math.max(0,Math.min(this.duration-.001,start+i/fps)));frames.push(sampleImage(this.video,options));progress((i+1)/count);await pause();
       }
     }
     if(!frames.length)throw new Error('沒有可轉換的影格');return{frames,fps};

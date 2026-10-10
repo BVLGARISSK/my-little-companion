@@ -1,11 +1,11 @@
 import {packPixels} from './media.js';
 export const EMOTIONS=[
-  {id:'neutral',name:'平常',caption:'小伴靜靜地陪著你',shape:'<path d="M6 7v11M26 7v11m-13 1h6"/>'},
-  {id:'happy',name:'開心',caption:'小伴現在很開心',shape:'<path d="M4 15q5-12 10 0m5 0q5-12 10 0M14 19q3 3 6 0"/>'},
-  {id:'sad',name:'難過',caption:'小伴想要一個抱抱',shape:'<path d="m4 9 9 3m7 0 9-3M7 15v3m18-3v3m-11 4q3-4 6 0"/>'},
-  {id:'surprised',name:'驚訝',caption:'小伴發現了一點驚喜',shape:'<ellipse cx="7" cy="12" rx="3" ry="6"/><ellipse cx="25" cy="12" rx="3" ry="6"/><circle cx="16" cy="21" r="2"/>'},
-  {id:'sleepy',name:'想睡',caption:'小伴正在慢慢放鬆',shape:'<path d="M4 14h9m7 0h9M14 21h5"/>'},
-  {id:'angry',name:'生氣',caption:'小伴有一點小脾氣',shape:'<path d="m4 8 9 4m7 0 9-4M7 15v3m18-3v3m-11 4h5"/>'}
+  {id:'neutral',name:'平常',caption:'目前預覽：平常',shape:'<path d="M6 7v11M26 7v11m-13 1h6"/>'},
+  {id:'happy',name:'開心',caption:'目前預覽：開心',shape:'<path d="M4 15q5-12 10 0m5 0q5-12 10 0M14 19q3 3 6 0"/>'},
+  {id:'sad',name:'難過',caption:'目前預覽：難過',shape:'<path d="m4 9 9 3m7 0 9-3M7 15v3m18-3v3m-11 4q3-4 6 0"/>'},
+  {id:'surprised',name:'驚訝',caption:'目前預覽：驚訝',shape:'<ellipse cx="7" cy="12" rx="3" ry="6"/><ellipse cx="25" cy="12" rx="3" ry="6"/><circle cx="16" cy="21" r="2"/>'},
+  {id:'sleepy',name:'想睡',caption:'目前預覽：想睡',shape:'<path d="M4 14h9m7 0h9M14 21h5"/>'},
+  {id:'angry',name:'生氣',caption:'目前預覽：生氣',shape:'<path d="m4 8 9 4m7 0 9-4M7 15v3m18-3v3m-11 4h5"/>'}
 ];
 export function emotionFrame(id,time=0,still=false){
   const p=new Uint8Array(8192);const blink=!still&&(time%4200>3900),look=still?0:Math.round(Math.sin(time/2100)*3);

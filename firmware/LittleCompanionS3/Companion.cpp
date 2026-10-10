@@ -1,5 +1,6 @@
 #include "Companion.h"
 #include "Config.h"
+#include "BleWindow.h"
 #include "Storage.h"
 #include "Display.h"
 #include <NimBLEDevice.h>
@@ -22,14 +23,15 @@ uint8_t ownerKey[32];
 std::atomic<uint32_t> connectionEpoch{0}, storageFree{0}, storageTotal{0};
 std::atomic<uint16_t> connectionHandle{BLE_HS_CONN_HANDLE_NONE}, mtu{23};
 std::atomic<bool> connected{false}, subscribed{false};
-uint32_t observedEpoch = 0, advertiseSince = 0, statusSince = 0;
+uint32_t observedEpoch = 0, statusSince = 0;
+BleWindow bleWindow(config::ADVERTISE_MS, config::UPLOAD_IDLE_MS);
 bool wasConnected = false, advertising = false, windowClosed = false;
 enum Source : uint8_t { BLE, USB };
 struct Session {
   bool authorized = false;
   String clientNonce, serverNonce;
-  uint32_t connectedAt = 0, challengedAt = 0, activityAt = 0;
-  void reset() { authorized = false; clientNonce = ""; serverNonce = ""; connectedAt = activityAt = millis(); }
+  uint32_t challengedAt = 0;
+  void reset() { authorized = false; clientNonce = ""; serverNonce = ""; }
 } bleSession, usbSession;
 struct Packet { uint32_t epoch; uint16_t handle, length; uint8_t kind; uint8_t bytes[244]; };
 QueueHandle_t packets;
@@ -85,14 +87,15 @@ void ackUpload(Source source) {
 }
 void closeUpload() { flushUpload(); upload.file.close(); upload.active = false; }
 bool clearUploadJournal() { JsonDocument d; d["active"] = false; return storage.saveJournal("upload", d.as<JsonVariantConst>()); }
+void uploaded(Source source) { if (source == BLE) bleWindow.onUpload(millis()); }
 void receiveData(Source source, uint16_t id, uint32_t offset, const uint8_t* bytes, size_t length) {
   Session& session = source == BLE ? bleSession : usbSession;
   if (!session.authorized || !upload.active || source != upload.owner || id != upload.id || !length || length > 1024) return;
-  session.activityAt = millis();
   uint32_t total = upload.meta["length"].as<uint32_t>();
-  if (offset < upload.received && offset + length <= upload.received) { ackUpload(source); return; }
+  if (offset < upload.received && offset + length <= upload.received) { uploaded(source); ackUpload(source); return; }
   if (offset != upload.received || offset > total || length > total - offset) { ackUpload(source); return; }
   size_t written = upload.file.write(bytes, length); upload.received += written;
+  if (written) uploaded(source);
   if (written != length) { ackUpload(source); closeUpload(); return; }
   if (++upload.pendingPackets >= config::UPLOAD_WINDOW || upload.received == total) ackUpload(source);
 }
@@ -103,7 +106,9 @@ void status(JsonDocument& d) {
   d["storage_ready"] = storage.ready; d["storage_free"] = storageFree.load(); d["storage_total"] = storageTotal.load();
   d["mode"] = screen.modeName(); d["media_id"] = screen.currentId; d["frames_sent"] = screen.framesSent; d["frame_crc32"] = screen.frameCrc;
   d["brightness"] = screen.level; d["ble_connected"] = connected.load(); d["ble_authorized"] = bleSession.authorized;
-  d["advertising"] = advertising; d["window_ms_left"] = !windowClosed && millis() - advertiseSince < config::ADVERTISE_MS ? config::ADVERTISE_MS - (millis() - advertiseSince) : 0;
+  d["advertising"] = advertising; d["uptime_ms"] = millis();
+  d["window_ms_left"] = windowClosed ? 0 : bleWindow.remaining(millis());
+  d["ble_window_state"] = windowClosed ? "closed" : bleWindow.hasConnected() ? "upload_idle" : "discovery";
   d["storage_error"] = storage.error;
 }
 void handle(Source source, uint16_t requestId, JsonVariantConst request) {
@@ -126,10 +131,9 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
     uint8_t difference = 0; for (unsigned i = 0; i < 32; ++i) difference |= expected[i] ^ supplied[i];
     session.clientNonce = ""; session.serverNonce = "";
     if (!valid || difference) { fail(source, requestId, "AUTH", "Incorrect key or expired challenge."); return; }
-    session.authorized = true; session.activityAt = millis(); success(source, requestId); return;
+    session.authorized = true; success(source, requestId); return;
   }
   if (!session.authorized) { fail(source, requestId, "UNAUTHORIZED", "Authorize this connection first."); return; }
-  session.activityAt = millis();
   if (op == "SET_EMOTION") {
     String mood = request["emotion"] | "", mode = request["mode"] | "";
     if (!validEmotion(mood) || (mode != "manual" && mode != "auto")) { fail(source, requestId, "EMOTION", "Invalid emotion or mode."); return; }
@@ -162,6 +166,7 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
     if (!storage.validatePlaylist(next, why)) { fail(source, requestId, "PLAYLIST", why); return; }
     if (!storage.saveJournal("playlist", next)) { fail(source, requestId, "WRITE", "Playlist commit failed; previous playlist preserved."); return; }
     storage.playlist.set(next); screen.playPlaylist(); preferences.putString("mode", "playlist"); updateStorageInfo();
+    uploaded(source);
   } else if (op == "UPLOAD_BEGIN") {
     String id = request["id"] | "", kind = request["kind"] | "", name = request["name"] | "";
     if (!media::hex(id.c_str(), 32) || (kind != "image" && kind != "animation") || name.length() > 240 || !request["length"].is<uint32_t>() || !request["crc32"].is<uint32_t>()) { fail(source, requestId, "UPLOAD", "Invalid upload metadata."); return; }
@@ -185,6 +190,7 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
     upload.active = true; upload.owner = source; upload.received = upload.durable = existing; upload.pendingPackets = 0;
     do { upload.id = esp_random() & 65535; } while (!upload.id);
     response["transfer_id"] = upload.id; response["offset"] = existing; response["window_packets"] = config::UPLOAD_WINDOW; updateStorageInfo();
+    uploaded(source);
   } else if (op == "UPLOAD_STATUS" || op == "UPLOAD_END" || op == "UPLOAD_CANCEL") {
     if (!upload.active || upload.owner != source || !request["transfer_id"].is<uint16_t>() || request["transfer_id"].as<uint16_t>() != upload.id) { fail(source, requestId, "TRANSFER", "No matching active transfer."); return; }
     flushUpload();
@@ -201,6 +207,7 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
       upload.active = false; clearUploadJournal();
       if (current == upload.meta["id"].as<String>()) screen.playMedia(current);
       updateStorageInfo();
+      uploaded(source);
     }
   } else if (source == USB && op == "UPLOAD_DATA") {
     String data = request["hex"] | ""; uint8_t buffer[1024];
@@ -293,7 +300,7 @@ void initializeBLE() {
   events = s->createCharacteristic(config::EVENT, NIMBLE_PROPERTY::NOTIFY, 244); events->setCallbacks(&eventCallbacks);
   auto info = s->createCharacteristic(config::INFO, NIMBLE_PROPERTY::READ, 512); info->setCallbacks(&infoCallbacks);
   auto a = NimBLEDevice::getAdvertising(); a->addServiceUUID(config::SERVICE); a->enableScanResponse(true); a->setName("Little Companion S3");
-  s->start(); advertiseSince = millis();
+  s->start(); bleWindow.open(millis());
 }
 void printPair() {
   JsonDocument d; d["device_id"] = deviceId; d["key"] = hexBytes(ownerKey, sizeof(ownerKey));
@@ -308,7 +315,7 @@ void readSerial() {
     if (c != '\n') { if (line.length() < config::MAX_JSON) line += c; else tooLong = true; continue; }
     if (tooLong) { line = ""; tooLong = false; Serial.println("Serial request too long."); continue; }
     if (line == "pair") printPair();
-    else if (line == "ble") { advertiseSince = millis(); windowClosed = false; startAdvertising(); Serial.println("BLE window reopened for 180 seconds."); }
+    else if (line == "ble") { bleWindow.open(millis(), connected.load()); windowClosed = false; startAdvertising(); Serial.println("BLE window reopened: 5 minutes to connect, 10 minutes without an upload after connecting."); }
     else if (line == "rotate") screen.rotate(true);
     else if (line == "normal") screen.rotate(false);
     else if (line == "status") { JsonDocument d; status(d); reply(USB, 0, d.as<JsonVariantConst>()); }
@@ -326,17 +333,11 @@ void processBLE() {
     if (upload.active && upload.owner == BLE) closeUpload();
     assemblies.clear(); outgoing.clear(); bleSession.reset(); observedEpoch = epoch; overflowed = false;
     advertising = NimBLEDevice::getAdvertising()->isAdvertising();
-    if (live) { advertising = false; Serial.println("BLE connected; authorization required."); }
+    if (live) { bleWindow.onConnection(millis()); advertising = false; Serial.println("BLE connected; authorization required."); }
     else if (wasConnected) Serial.println("BLE disconnected; partial upload kept.");
     wasConnected = live;
   }
-  if (millis() - advertiseSince >= config::ADVERTISE_MS) windowClosed = true;
-  if (!live) {
-    if (windowClosed) { if (advertising) NimBLEDevice::getAdvertising()->stop(); advertising = false; }
-    else if (!advertising) startAdvertising();
-  } else {
-    if (overflowed.exchange(false) || (!bleSession.authorized && millis() - bleSession.connectedAt > config::AUTH_MS) || (bleSession.authorized && millis() - bleSession.activityAt > config::IDLE_MS)) server->disconnect(connectionHandle.load());
-  }
+  if (live && overflowed.exchange(false)) server->disconnect(connectionHandle.load());
   Packet p;
   for (unsigned count = 0; count < 8 && xQueueReceive(packets, &p, 0) == pdTRUE; ++count) {
     if (!connected || p.epoch != observedEpoch || p.handle != connectionHandle.load()) continue;
@@ -344,6 +345,11 @@ void processBLE() {
     else if (p.bytes[0] == 1 && p.bytes[1] == 0) receiveData(BLE, media::le16(p.bytes + 2), media::le32(p.bytes + 4), p.bytes + 8, p.length - 8);
   }
   for (auto it = assemblies.begin(); it != assemblies.end();) { if (millis() - it->second.since > 15000) it = assemblies.erase(it); else ++it; }
+  if (!windowClosed && !bleWindow.remaining(millis())) { windowClosed = true; Serial.println("BLE window closed: deadline reached."); }
+  if (windowClosed) {
+    if (advertising) NimBLEDevice::getAdvertising()->stop(); advertising = false;
+    if (connected) server->disconnect(connectionHandle.load());
+  } else if (!connected && !advertising) startAdvertising();
   sendOneNotification();
 }
 }

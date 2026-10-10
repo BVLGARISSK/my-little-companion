@@ -73,13 +73,23 @@ export function imagePlacement(width,height,{zoom=1,cropX=.5,cropY=.5}={}) {
   return{x:(WIDTH-w)*cropX,y:(HEIGHT-h)*cropY,width:w,height:h};
 }
 
+export function fillBackground(pixels,placement,background='black') {
+  if(pixels.length!==WIDTH*HEIGHT||!['black','white'].includes(background))throw new Error('背景設定無效');
+  const value=background==='white'?1:0;
+  for(let y=0;y<HEIGHT;y++)for(let x=0;x<WIDTH;x++){
+    if(x+.5<placement.x||x+.5>=placement.x+placement.width||y+.5<placement.y||y+.5>=placement.y+placement.height)pixels[y*WIDTH+x]=value;
+  }
+  return pixels;
+}
+
 export function sampleImage(source, options = {}) {
   const canvas=document.createElement('canvas'); canvas.width=WIDTH; canvas.height=HEIGHT;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   const w=source.videoWidth||source.naturalWidth||source.width, h=source.videoHeight||source.naturalHeight||source.height;
   const placement=imagePlacement(w,h,options);
   ctx.fillStyle='#000';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.drawImage(source,placement.x,placement.y,placement.width,placement.height);
-  return packPixels(monochrome(ctx.getImageData(0,0,WIDTH,HEIGHT).data,options));
+  const pixels=monochrome(ctx.getImageData(0,0,WIDTH,HEIGHT).data,options);
+  return packPixels(fillBackground(pixels,placement,options.background));
 }
 
 export function drawFrame(canvas, bytes, {grid=false,onion=null} = {}) {

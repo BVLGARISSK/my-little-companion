@@ -7,4 +7,4 @@ $taskBoard = 'esp32:esp32:esp32s3:FlashSize=16M,CDCOnBoot=default,PSRAM=disabled
 Write-Host "Uploading to ESP32-S3 on $PortName. Close serial monitors first."
 & $taskCli upload --port $PortName --fqbn $taskBoard --input-dir $InputDirectory
 if ($LASTEXITCODE -ne 0) { throw 'Firmware upload failed.' }
-Write-Host 'Upload complete. Look for Little Companion S3 within 180 seconds.'
+Write-Host 'Upload complete. Look for Little Companion S3 within 5 minutes. After connecting, 10 minutes without an upload closes BLE.'

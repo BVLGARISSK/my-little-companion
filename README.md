@@ -21,7 +21,7 @@
 
 1. 在 iPhone 開啟網址，即可先做作品與手機預覽。
 2. 要使用 BLE，請在 [Bluefy](https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055) 開啟同一個 HTTPS 網址。
-3. 開啟吊飾，在 180 秒內按「連接小夥伴」。
+3. 開啟吊飾，在 5 分鐘內按「連接小夥伴」。連線後若 10 分鐘沒有上傳作品或同步清單，藍牙會關閉。
 4. 输入小卡上的授權碼，或以含裝置 ID／授權碼的網址片段開啟網頁。
 5. 把作品加入播放清單，按「同步給小伴」。
 
@@ -29,7 +29,7 @@
 
 ## ESP32-S3 韌體
 
-現在另有與網頁`mlc/1`協定一致的[ESP32-S3韌體](firmware/README.md)。沿用已接好的16MB Flash S3、SH1106 128×64、SDA GPIO8、SCL GPIO9，支援表情、亮度、OLA圖片／動畫、播放清單、LittleFS、HMAC授權、180秒廣播窗口。
+現在另有與網頁`mlc/1`協定一致的[ESP32-S3韌體](firmware/README.md)。沿用已接好的16MB Flash S3、SH1106 128×64、SDA GPIO8、SCL GPIO9，支援表情、亮度、OLA圖片／動畫、播放清單、LittleFS、HMAC授權、5分鐘搜尋窗口與10分鐘上傳閒置關閉。
 
 程式與編譯／上傳／取配對碼工具在`firmware/`；本機備份及私人授權碼不放入儲存庫。驗證範圍見[實機紀錄](docs/firmware-verification.md)。目前仍未實作安全OTA與電池量測。
 

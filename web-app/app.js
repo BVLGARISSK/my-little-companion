@@ -46,9 +46,9 @@ bind('emotion-apply',async()=>{await ble.command('SET_EMOTION',{emotion:mood,mod
 
 // Image editor: all decoding and conversion stay on the current device.
 bind('import-photo',()=>$('photo-file').click());bind('close-photo',()=>{$('photo-editor').hidden=true;photo=null;});
-function photoOptions(){return{threshold:Number($('photo-threshold').value),contrast:Number($('photo-contrast').value),brightness:Number($('photo-brightness').value),cropX:Number($('photo-x').value),cropY:Number($('photo-y').value),zoom:Number($('photo-zoom').value),dither:$('photo-dither').checked,invert:$('photo-invert').checked};}
+function photoOptions(){return{threshold:Number($('photo-threshold').value),contrast:Number($('photo-contrast').value),brightness:Number($('photo-brightness').value),cropX:Number($('photo-x').value),cropY:Number($('photo-y').value),zoom:Number($('photo-zoom').value),dither:$('photo-dither').checked,invert:$('photo-invert').checked,background:$('photo-background').value};}
 function updatePhoto(){if(!photo)return;photoBytes=sampleImage(photo,photoOptions());drawFrame($('photo-canvas'),photoBytes);$('threshold-output').textContent=$('photo-threshold').value;}
-['threshold','contrast','brightness','x','y','zoom','dither','invert'].forEach(key=>bind('photo-'+key,updatePhoto,'input'));
+['threshold','contrast','brightness','x','y','zoom','dither','invert','background'].forEach(key=>bind('photo-'+key,updatePhoto,'input'));
 bind('photo-file',async e=>{
   const file=e.target.files[0];e.target.value='';if(!file)return;
   if(file.name.toLowerCase().endsWith('.ola')){const data=decodeOLA(new Uint8Array(await file.arrayBuffer()));addAsset(file.name.replace(/\.ola$/i,''),data.frames,data.fps);return;}
@@ -123,7 +123,7 @@ bind('pixel-save',()=>{addAsset($('pixel-name').value,pixel().frames.map((_,i)=>
 // GIF and video conversion.
 bind('import-animation',()=>$('animation-file').click());bind('animation-file',async e=>{const file=e.target.files[0];e.target.value='';if(file)await loadAnimation(file);},'change');
 let animationPlaying=false,animationStart=0,animationConverting=false,animationLoading=false,animationPreviewRunning=false,animationPreviewPending=false,animationPreviewRequest=0,animationPreviewPromise=Promise.resolve();
-function animationOptions(){return{zoom:Number($('animation-zoom').value),cropX:Number($('animation-x').value),cropY:Number($('animation-y').value),threshold:Number($('animation-threshold').value),dither:$('animation-dither').checked,invert:$('animation-invert').checked};}
+function animationOptions(){return{zoom:Number($('animation-zoom').value),cropX:Number($('animation-x').value),cropY:Number($('animation-y').value),threshold:Number($('animation-threshold').value),dither:$('animation-dither').checked,invert:$('animation-invert').checked,background:$('animation-background').value};}
 function setAnimationCrop(zoom=1){$('animation-zoom').value=zoom;$('animation-x').value=.5;$('animation-y').value=.5;$('animation-zoom-output').textContent=Number($('animation-zoom').value).toFixed(2)+'×';}
 function requestAnimationPreview(){
   if(!converter.file||converter.ola||animationConverting||animationLoading)return animationPreviewPromise;
@@ -147,7 +147,7 @@ function animationSettingsChanged(){
   animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;$('animation-info').textContent='裁切預覽 · 調整後請重新轉換動畫';
   return requestAnimationPreview();
 }
-['start','duration','fps','zoom','x','y','threshold','dither','invert'].forEach(key=>bind('animation-'+key,animationSettingsChanged,'input'));
+['start','duration','fps','zoom','x','y','threshold','dither','invert','background'].forEach(key=>bind('animation-'+key,animationSettingsChanged,'input'));
 bind('animation-reset',()=>{setAnimationCrop();return animationSettingsChanged();});
 bind('animation-fit',()=>{
   const {width,height}=converter.dimensions;if(!width||!height)return;
@@ -164,7 +164,7 @@ async function loadAnimation(file){
   $('animation-editor').hidden=true;animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;
   try{
     await animationPreviewPromise;const info=await converter.load(file);setAnimationCrop();$('animation-editor').hidden=false;$('source-video').hidden=info.kind!=='video';$('animation-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('animation-start').value=0;$('animation-start').max=info.duration.toFixed(2);$('animation-duration').value=Math.min(5,info.duration).toFixed(1);$('animation-info').textContent=`原始長度 ${info.duration.toFixed(1)} 秒 · ${info.kind==='gif'?'GIF':info.kind==='ola'?'OLA 作品':'影片'}`;
-    ['start','duration','fps','zoom','x','y','threshold','dither','invert','fit','reset'].forEach(key=>$('animation-'+key).disabled=info.kind==='ola');$('convert-animation').disabled=info.kind==='ola';
+    ['start','duration','fps','zoom','x','y','threshold','dither','invert','background','fit','reset'].forEach(key=>$('animation-'+key).disabled=info.kind==='ola');$('convert-animation').disabled=info.kind==='ola';
     if(info.kind==='ola'){animation=converter.ola;$('save-animation').disabled=false;drawFrame($('animation-canvas'),animation.frames[0]);}
   }finally{animationLoading=false;$('import-animation').disabled=false;}
   await requestAnimationPreview();

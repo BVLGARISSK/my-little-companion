@@ -4,7 +4,7 @@ import {validatePlaylist} from './js/protocol.js';
 import {DraftStore} from './js/storage.js';
 import {CompanionBLE} from './js/ble.js';
 import {MediaConverter} from './js/converter.js';
-import {readPairing} from './js/pairing.js';
+import {readPairing,pairingKeyForDevice} from './js/pairing.js';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let storeReady=false,saveTimer,toastTimer,saveQueue=Promise.resolve(),filter='all',activeTab='emotion',mood='happy',auto=false,photo=null,photoBytes=null,animation=null,assetSelected=null,pixelPlaying=false,pixelStart=0,assetStart=0,previewRunning=false,playlistIndex=0,playlistStarted=0,playlistFrameStarted=0;
@@ -230,7 +230,7 @@ bind('copy-pairing-link',async()=>{
 async function connect(){
   showTab('device');if(!browserSupported){toast('iPhone 請先使用 Bluefy 開啟這個網址，作品仍可以先編輯。');return;}
   $('connect-device').disabled=true;$('connect-device').textContent='正在尋找…';
-  try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;$('auth-key').value=saved||(pairingKey&&(!pairingDevice||pairingDevice===info.device_id)?pairingKey:'');$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
+  try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;$('auth-key').value=pairingKeyForDevice(pairingKey,pairingDevice,info.device_id,saved);$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
   finally{$('connect-device').disabled=false;$('connect-device').textContent='尋找小夥伴';}
 }
 async function authorize(){const key=$('auth-key').value.trim();await ble.authorize(key);if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;$('pairing-message').textContent='已連線並授權，可以傳送作品。下次使用時，重新掃描小卡即可。';$('auth-key').value='';toast('已連線並授權，可以傳送作品。');}

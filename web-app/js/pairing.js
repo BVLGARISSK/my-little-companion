@@ -11,3 +11,9 @@ export function readPairing(href){
   url.hash=fragment.toString();
   return{key,device,url:url.href};
 }
+
+// A freshly scanned card replaces a stale remembered key after factory reset.
+// A card for another device must never be used to authorize this connection.
+export function pairingKeyForDevice(key,cardDevice,connectedDevice,saved){
+  return key&&(!cardDevice||cardDevice===connectedDevice)?key:saved||'';
+}

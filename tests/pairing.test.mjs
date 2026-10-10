@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readPairing} from '../web-app/js/pairing.js';
+import {readPairing,pairingKeyForDevice} from '../web-app/js/pairing.js';
 
 const key='0123456789abcdef'.repeat(4),base='https://example.test/companion/';
 test('QR credentials survive a sanitized address for browser handoff',()=>{
@@ -17,4 +17,14 @@ test('legacy key-only cards remain usable and extra fragment fields are removed'
   const pairing=readPairing(base+'#key='+key.toUpperCase()+'&other=discard');
   assert.equal(pairing.device,null);assert.equal(pairing.key,key.toUpperCase());
   assert.equal(pairing.url,base+'#key='+key.toUpperCase());
+});
+test('a new QR replaces the remembered pre-reset key for the same device',()=>{
+  const oldKey='f'.repeat(64),device='mlc-s3-test';
+  assert.equal(pairingKeyForDevice(key,device,device,oldKey),key);
+  assert.equal(pairingKeyForDevice(null,null,device,oldKey),oldKey);
+});
+test('a QR for another companion cannot replace this device authorization',()=>{
+  const saved='f'.repeat(64);
+  assert.equal(pairingKeyForDevice(key,'mlc-s3-other','mlc-s3-test',saved),saved);
+  assert.equal(pairingKeyForDevice(key,'mlc-s3-other','mlc-s3-test',null),'');
 });

@@ -1,5 +1,6 @@
 import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js';
 import {crc32,encodeOLA} from './media.js';
+import {decryptOwnerPairing} from './administration.js';
 
 export class CompanionBLE extends EventTarget {
   constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
@@ -23,7 +24,7 @@ export class CompanionBLE extends EventTarget {
     }catch(error){this.disconnect();throw error;}
   }
   onDisconnect(){
-    this.connectionEpoch++;this.authorization=null;this.authorized=false;this.role=null;this.info=null;this.assembler.clear();this.latestAck=null;
+    this.connectionEpoch++;this.authorization=null;this.authorized=false;this.role=null;this.adminKey=null;this.info=null;this.assembler.clear();this.latestAck=null;
     for(const p of this.pending.values())p.reject(new Error('連線中斷；已完成的作品會留在吊飾。'));this.pending.clear();
     this.ackWaiter?.reject(new Error('連線中斷，重新連線後可再同步。'));this.ackWaiter=null;
     this.emit('state',{connected:false,authorized:false,info:null});
@@ -86,6 +87,7 @@ export class CompanionBLE extends EventTarget {
       const proof=await authProof(key,info.device_id,clientNonce,challenge.server_nonce);checkConnection();
       const result=await this.request('AUTH',{client_nonce:clientNonce,proof});checkConnection();
       this.authorized=true;this.role=result.role==='admin'?'admin':'owner';
+      this.adminKey=this.role==='admin'?key:null;
       this.emit('state',{connected:true,authorized:true,role:this.role,info});
     })().finally(()=>{if(this.authorization===pending)this.authorization=null;});
     this.authorization=pending;return pending.promise;
@@ -93,6 +95,29 @@ export class CompanionBLE extends EventTarget {
   requireAuth(){if(!this.connected||!this.authorized)throw new Error('請先連線，並在裝置頁輸入小卡上的授權碼。');}
   capability(name){this.requireAuth();if(!this.info?.capabilities?.includes(name))throw new Error('吊飾韌體還沒開放這個功能。');}
   async command(op,fields={},cap){this.requireAuth();if(this.busy)throw new Error('正在同步作品，完成後再控制小伴。');if(cap)this.capability(cap);return this.request(op,fields);}
+  requireAdmin(cap){this.capability(cap);if(this.role!=='admin')throw new Error('請先掃描管理員 QR 卡，完成管理員授權。');}
+  async ownerPairing(){
+    this.requireAdmin('owner_pairing');
+    const epoch=this.connectionEpoch,info=this.info,key=this.adminKey;
+    const result=await this.command('GET_OWNER_PAIRING',{},'owner_pairing');
+    const pairing=await decryptOwnerPairing(result,key,info.device_id);
+    if(!this.connected||this.connectionEpoch!==epoch||this.info!==info||this.role!=='admin')throw new Error('連線已中斷，請重新讀取配對卡。');
+    return pairing;
+  }
+  async factoryReset(onPrepared=()=>{}){
+    this.requireAdmin('factory_reset');if(this.busy)throw new Error('請先完成或取消作品同步。');
+    const epoch=this.connectionEpoch,info=this.info;this.busy=true;
+    try{
+      const prepared=await this.request('FACTORY_RESET_PREPARE');
+      if(prepared.device_id!==info.device_id||!/^[a-f0-9]{32}$/.test(prepared.reset_id||''))throw new Error('重設確認資料錯誤，尚未要求清除。');
+      const pending={device:info.device_id,id:prepared.reset_id};
+      await onPrepared(pending);
+      if(!this.connected||this.connectionEpoch!==epoch||this.info!==info)throw new Error('連線已中斷，尚未要求清除。');
+      const result=await this.request('FACTORY_RESET',{device_id:pending.device,reset_id:pending.id});
+      if(result.reset_id!==pending.id||result.stage!=='restarting')throw new Error('重設狀態尚未確認，請重新連線檢查。');
+      return pending;
+    }finally{this.busy=false;}
+  }
   waitForAck(id,target){
     if(this.latestAck?.transfer_id===id&&this.latestAck.offset>=target)return Promise.resolve(this.latestAck.offset);
     return new Promise((resolve,reject)=>{

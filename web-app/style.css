@@ -7,3 +7,4 @@
 
 .toggle-row{position:relative}@media(max-width:600px){#view-pixel .section-title{flex-wrap:wrap}}
 fieldset.controls{border:0;padding:0;margin:0;min-width:0}
+.admin-card>p{margin:12px 0}.admin-card>.button-row{margin:16px 0}.danger{background:#fae9e0;color:#854a35;border-color:#edc5b5}.danger:hover:not(:disabled){background:#f5dccf}.owner-pairing{margin-top:22px;padding:20px 14px;border:1px solid var(--border);border-radius:18px;text-align:center;background:#fffefa}.owner-pairing canvas{display:block;width:min(100%,260px);height:auto;margin:16px auto;image-rendering:pixelated;background:#fff}.owner-pairing p{margin:8px 0 14px}.owner-pairing .button-row{justify-content:center}.owner-pairing label{text-align:left}.owner-pairing input{overflow-wrap:anywhere}

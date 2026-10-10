@@ -48,7 +48,7 @@ INFO 為 UTF-8 JSON，建議 ≤512 bytes：
 
 QR 小卡網址格式：`https://bvlgarissk.github.io/my-little-companion/#device=mlc-123&key=<64hex>`。只使用 fragment，不放 query；網頁讀取後立即清除 fragment。網址沒有實際 key，文件也不能放出廠 key。使用者明確勾選「記住」才寫入當前瀏覽器 IndexedDB，備份排除 key。
 
-兩種卡片使用相同網址格式；身分依裝置驗證結果決定。管理員可使用目前所有控制、作品與清單功能，沒有新增 BLE 重設／讀取密鑰指令。管理員碼只經本機 USB `admin` 指令取得。整片 Flash／NVS 擦除不在保留承諾內。
+兩種卡片使用相同網址格式；身分依裝置驗證結果決定。v0.3.4-s3 的管理員另可透過 BLE 恢復出廠並取得一般配對卡。管理員碼本身只經本機 USB `admin` 指令取得，BLE 不提供讀取管理員碼的指令。整片 Flash／NVS 擦除不在保留承諾內。
 
 此機制用於裝置所有權驗證，不提供傳輸內容加密或對所有後續封包的端到端認證。正式送禮之前應驗證 BLE 加密鏈路／bonding 相容性，或增加經審核的 session frame 認證與加密；不要把 CRC32 說成安全簽章。
 
@@ -63,6 +63,16 @@ QR 小卡網址格式：`https://bvlgarissk.github.io/my-little-companion/#devic
 | LIST_MEDIA | 無，回覆 items=`[{id,kind,name,length}]` | media |
 | DELETE_MEDIA | id，若仍被清單引用就拒絕 | media |
 | SET_PLAYLIST | playlist 見下 | playlist |
+| FACTORY_RESET_PREPARE | 管理員；回覆 device_id、32 hex reset_id、expires_ms=60000 | factory_reset |
+| FACTORY_RESET | 管理員；device_id 與同連線的單次 reset_id；回覆 stage=restarting | factory_reset |
+| FACTORY_RESET_STATUS | 管理員；回覆 device_id、completed_reset_id、storage_ready、作品／清單數 | factory_reset |
+| GET_OWNER_PAIRING | 管理員；回覆 device_id、nonce、ciphertext、tag，沒有明文 key | owner_pairing |
+
+完整恢復出廠的網頁流程：先由使用者確認清除範圍，再 PREPARE，將裝置 ID 與 reset_id 存入瀏覽器（不含密鑰），最後 COMMIT。確認 token 在 60 秒後、AUTH 嘗試或斷線後失效，每次 COMMIT 嘗試也會消耗 token。未授權、普通 owner、錯誤裝置、無效 token、進行中的作品傳送均拒絕重設。重設要求寫入 NVS 後，不因手機斷線取消，也不會由網頁自動重試。
+
+吊飾先回覆 restarting，再排空回覆佇列並重開機。`mlc-admin/reset_active` 保留獨立清除守衛，重設時只格式化媒體分區與清除 `mlc-s3`；一般碼、預設設定、儲存區與完成紀錄都建立後才清除守衛、開放 BLE。重新連線以管理員授權，網頁只在 completed_reset_id 與先前要求相同、device_id 相同、storage_ready=true 時宣告完成；斷線或 restarting 回覆本身不表示完成。管理員 key 保留，普通 owner key 更換。手機作品與播放清單草稿保留。
+
+一般配對碼以 AES-256-GCM 加密回傳：key 為已驗證的此台管理員 key，nonce 是每次新產生的 12-byte 亂數，AAD 是 UTF-8 `mlc/1:owner-pairing:<device_id>`，明文為 32-byte owner key，ciphertext 為 32 bytes、tag 為 16 bytes，所有輸出皆 hex。瀏覽器使用 WebCrypto 驗證 tag 並解密，再在本機畫 QR；沒有呼叫第三方 QR 服務。此保護只適用一般碼回傳，其他 BLE 內容仍未加密。管理員 key 僅在已驗證連線的記憶體中保留，斷線即清除；一般卡網址及畫布也會清除。作品備份不包含 key、配對網址或重設紀錄。
 
 每次 LIST_MEDIA 完整回覆不得超過 16384 bytes；韌體可限制裝置圖庫項目數與顯示名稱以維持此上限。若未來需分页，应升级契约与客户端。
 

@@ -53,7 +53,9 @@ Safari仍可製作作品；BLE需要支援Web Bluetooth的瀏覽器。不同瀏�
 
 接 USB 後雙擊 `FactoryReset-COM5.cmd`，輸入大寫 `RESET` 確認。它只支援 v0.3.2-s3 以上，會核對裝置狀態、清除吊飾內全部作品／清單／使用者設定、使原一般密鑰失效，並將新配對網址存到本機 `private/`。手機瀏覽器內的草稿不受影響。新網址可重新製作 QR Code；之前印出的**一般 QR** 無法再控制這台吊飾。v0.3.3-s3 的管理員 QR 仍有效。
 
-其他 COM 埠可執行 `FactoryReset.ps1 -PortName COM6`。USB 序列命令為 `factory-reset <device_id>`；缺少或填錯 ID 不會重設。BLE 不提供此指令，也不會廣播新密鑰。重設意圖先存入 NVS，斷電後會在開放 BLE 前繼續完成清除；清除失敗不宣告成功。
+v0.3.4-s3 也可直接在手機網頁操作：掃描管理員 QR、用 Bluefy 連線，到「裝置 → 交接與恢復出廠 → 完整恢復出廠」，確認清除範圍。吊飾重開機後，請在 5 分鐘內重新用管理員卡連線。網頁核對完成紀錄後顯示新的朋友配對 QR，可儲存 PNG 或複製網址。一般授權不能重設，也不能讀取配對碼；管理員卡保留，舊一般卡失效。未重設時也可使用「取得朋友配對 QR」讀取目前的一般卡。
+
+其他 COM 埠可執行 `FactoryReset.ps1 -PortName COM6`。USB 序列命令為 `factory-reset <device_id>`；缺少或填錯 ID 不會重設。重設意圖及独立守衛先存入 NVS，斷電後會在開放 BLE 前繼續完成清除；清除失敗不宣告成功。BLE 重設另外需要管理員 HMAC、正確裝置 ID 和 60 秒內單次確認 token。
 
 ## 管理員碼與一般配對卡
 
@@ -61,7 +63,7 @@ Safari仍可製作作品；BLE需要支援Web Bluetooth的瀏覽器。不同瀏�
 
 接 USB 後雙擊 `AdminPair-COM5.cmd`，或執行 `Pair.ps1 -PortName COM5 -Admin`，可取得管理員網址，儲存為本機 `private/admin-pairing-private.json` 與 `admin-phone-pairing.txt`；不覆蓋一般配對檔。管理員碼不透過 BLE 查詢、不放進 GitHub、也不包含在瀏覽器作品備份。
 
-保留範圍是本專案的恢復出廠流程與一般重開機／不擦除 NVS 的韌體更新；整片 Flash／NVS 擦除或更換主板後不保留。此版管理員身分仍使用目前已實作的控制功能；恢復出廠仍由 USB 執行，未增加遠端重設或 OTA。
+保留範圍是本專案的恢復出廠流程與一般重開機／不擦除 NVS 的韌體更新；整片 Flash／NVS 擦除或更換主板後不保留。v0.3.4-s3 的一般配對碼經 AES-GCM 加密回傳給管理員，由瀏覽器在本機解密並畫 QR，不回傳管理員碼。OTA 尚未實作。
 
 ## 驗證界線
 

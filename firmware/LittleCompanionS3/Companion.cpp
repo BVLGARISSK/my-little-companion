@@ -8,6 +8,7 @@
 #include <esp_random.h>
 #include <esp_mac.h>
 #include <mbedtls/md.h>
+#include <mbedtls/gcm.h>
 #include <atomic>
 #include <deque>
 #include <map>
@@ -28,13 +29,17 @@ std::atomic<bool> connected{false}, subscribed{false};
 uint32_t observedEpoch = 0, statusSince = 0;
 BleWindow bleWindow(config::ADVERTISE_MS, config::UPLOAD_IDLE_MS);
 bool wasConnected = false, advertising = false, windowClosed = false;
+bool resetScheduled = false;
+uint32_t resetScheduledAt = 0;
 enum Source : uint8_t { BLE, USB };
 struct Session {
   bool authorized = false;
   bool admin = false;
   String clientNonce, serverNonce;
+  String resetToken;
   uint32_t challengedAt = 0;
-  void reset() { authorized = false; admin = false; clientNonce = ""; serverNonce = ""; }
+  uint32_t resetPreparedAt = 0;
+  void reset() { authorized = false; admin = false; clientNonce = ""; serverNonce = ""; resetToken = ""; }
 } bleSession, usbSession;
 struct Packet { uint32_t epoch; uint16_t handle, length; uint8_t kind; uint8_t bytes[244]; };
 QueueHandle_t packets;
@@ -93,7 +98,7 @@ bool clearUploadJournal() { JsonDocument d; d["active"] = false; return storage.
 void uploaded(Source source) { if (source == BLE) bleWindow.onUpload(millis()); }
 void receiveData(Source source, uint16_t id, uint32_t offset, const uint8_t* bytes, size_t length) {
   Session& session = source == BLE ? bleSession : usbSession;
-  if (!session.authorized || !upload.active || source != upload.owner || id != upload.id || !length || length > 1024) return;
+  if (resetScheduled || !session.authorized || !upload.active || source != upload.owner || id != upload.id || !length || length > 1024) return;
   uint32_t total = upload.meta["length"].as<uint32_t>();
   if (offset < upload.received && offset + length <= upload.received) { uploaded(source); ackUpload(source); return; }
   if (offset != upload.received || offset > total || length > total - offset) { ackUpload(source); return; }
@@ -114,6 +119,7 @@ void status(JsonDocument& d) {
   d["ble_window_state"] = windowClosed ? "closed" : bleWindow.hasConnected() ? "upload_idle" : "discovery";
   d["storage_error"] = storage.error;
   d["factory_reset_usb"] = true;
+  d["factory_reset_ble"] = true;
   d["media_count"] = storage.ready ? storage.library["items"].size() : 0;
   d["playlist_count"] = storage.ready ? storage.playlist["items"].size() : 0;
   d["admin_key_retained_on_factory_reset"] = true;
@@ -122,6 +128,7 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
   String op = request["op"] | ""; Session& session = source == BLE ? bleSession : usbSession;
   JsonDocument response; response["ok"] = true;
   if (source == USB && op == "STATUS") { status(response); reply(source, requestId, response.as<JsonVariantConst>()); return; }
+  if (resetScheduled) { fail(source, requestId, "RESTARTING", "吊飾正在恢復出廠，請稍後重新連線。"); return; }
   if (op == "AUTH_CHALLENGE") {
     String nonce = request["client_nonce"] | "";
     if (!media::hex(nonce.c_str(), 32, false)) { fail(source, requestId, "AUTH", "Invalid client nonce."); return; }
@@ -139,12 +146,53 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
     uint8_t difference = 0, adminDifference = 0;
     for (unsigned i = 0; i < 32; ++i) { difference |= expected[i] ^ supplied[i]; adminDifference |= adminExpected[i] ^ supplied[i]; }
     session.clientNonce = ""; session.serverNonce = "";
+    session.resetToken = "";
     if (!valid || (difference && adminDifference)) { fail(source, requestId, "AUTH", "Incorrect key or expired challenge."); return; }
     session.authorized = true; session.admin = adminDifference == 0;
     response["role"] = session.admin ? "admin" : "owner";
     reply(source, requestId, response.as<JsonVariantConst>()); return;
   }
   if (!session.authorized) { fail(source, requestId, "UNAUTHORIZED", "Authorize this connection first."); return; }
+  if (op == "FACTORY_RESET_PREPARE" || op == "FACTORY_RESET" || op == "FACTORY_RESET_STATUS" || op == "GET_OWNER_PAIRING") {
+    if (!session.admin) { fail(source, requestId, "ADMIN_REQUIRED", "請使用管理員 QR 卡授權後再操作。"); return; }
+    if (op == "FACTORY_RESET_PREPARE") {
+      if (upload.active) { fail(source, requestId, "BUSY", "請先完成或取消作品傳送。"); return; }
+      uint8_t token[16]; esp_fill_random(token, sizeof(token));
+      session.resetToken = hexBytes(token, sizeof(token)); session.resetPreparedAt = millis();
+      response["reset_id"] = session.resetToken; response["device_id"] = deviceId;
+      response["expires_ms"] = 60000;
+    } else if (op == "FACTORY_RESET") {
+      String token = request["reset_id"] | "", target = request["device_id"] | "";
+      bool valid = token.length() == 32 && token == session.resetToken && target == deviceId && millis() - session.resetPreparedAt <= 60000;
+      session.resetToken = ""; // A commit attempt consumes the single-use confirmation.
+      if (!valid) { fail(source, requestId, "RESET_CONFIRMATION", "恢復出廠確認已過期或裝置不符，請重新操作。"); return; }
+      if (upload.active) { fail(source, requestId, "BUSY", "請先完成或取消作品傳送。"); return; }
+      if (!adminPreferences.putString("reset_request", token) || !preferences.putBool("factory_pending", true)) {
+        fail(source, requestId, "RESET_INTENT", "無法儲存重設要求，請重試。"); return;
+      }
+      response["reset_id"] = token; response["stage"] = "restarting";
+      resetScheduled = true; resetScheduledAt = millis();
+    } else if (op == "FACTORY_RESET_STATUS") {
+      response["completed_reset_id"] = adminPreferences.getString("reset_done", "");
+      response["device_id"] = deviceId; response["storage_ready"] = storage.ready;
+      response["media_count"] = storage.ready ? storage.library["items"].size() : 0;
+      response["playlist_count"] = storage.ready ? storage.playlist["items"].size() : 0;
+    } else {
+      // Return the ordinary key sealed for the verified administrator. No raw
+      // credential travels over the otherwise unencrypted BLE transport.
+      const String aad = String("mlc/1:owner-pairing:") + deviceId;
+      uint8_t nonce[12], ciphertext[32], tag[16]; esp_fill_random(nonce, sizeof(nonce));
+      mbedtls_gcm_context ctx; mbedtls_gcm_init(&ctx);
+      int result = mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, adminKey, 256);
+      if (!result) result = mbedtls_gcm_crypt_and_tag(&ctx, MBEDTLS_GCM_ENCRYPT, sizeof(ownerKey), nonce, sizeof(nonce),
+        reinterpret_cast<const uint8_t*>(aad.c_str()), aad.length(), ownerKey, ciphertext, sizeof(tag), tag);
+      mbedtls_gcm_free(&ctx);
+      if (result) { fail(source, requestId, "PAIRING_ENCRYPTION", "無法產生配對卡，請重試。"); return; }
+      response["device_id"] = deviceId; response["nonce"] = hexBytes(nonce, sizeof(nonce));
+      response["ciphertext"] = hexBytes(ciphertext, sizeof(ciphertext)); response["tag"] = hexBytes(tag, sizeof(tag));
+    }
+    reply(source, requestId, response.as<JsonVariantConst>()); return;
+  }
   if (op == "SET_EMOTION") {
     String mood = request["emotion"] | "", mode = request["mode"] | "";
     if (!validEmotion(mood) || (mode != "manual" && mode != "auto")) { fail(source, requestId, "EMOTION", "Invalid emotion or mode."); return; }
@@ -294,6 +342,7 @@ class InfoCallbacks : public NimBLECharacteristicCallbacks {
     d["max_write_bytes"] = min(uint16_t(244), uint16_t(max(uint16_t(23), info.getMTU()) - 3));
     JsonArray caps = d["capabilities"].to<JsonArray>(); caps.add("emotion"); caps.add("brightness");
     caps.add("admin_auth");
+    caps.add("factory_reset"); caps.add("owner_pairing");
     if (storage.ready) { caps.add("media"); caps.add("playlist"); d["storage_total"] = storageTotal.load(); d["storage_free"] = storageFree.load(); }
     String text; serializeJson(d, text); c->setValue(text.c_str());
   }
@@ -321,7 +370,8 @@ void printPair(bool admin = false) {
   Serial.print(admin ? "@ADMIN," : "@PAIR,"); serializeJson(d, Serial); Serial.println();
 }
 void requestFactoryReset() {
-  // Local USB only. The device id is an explicit confirmation of the target.
+  // Physical USB recovery. Wireless requests use administrator authorization
+  // and a fresh, connection-bound confirmation token above.
   // Persist intent before reboot so a power loss during formatting is retried.
   if (!preferences.putBool("factory_pending", true)) {
     Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"save_intent\"}");
@@ -331,10 +381,16 @@ void requestFactoryReset() {
   Serial.flush(); delay(100); ESP.restart();
 }
 bool completeFactoryReset() {
-  if (!preferences.getBool("factory_pending", false)) return false;
+  if (!preferences.getBool("factory_pending", false) && !adminPreferences.getBool("reset_active", false)) return false;
+  // The durable guard lives outside the namespace about to be cleared, so
+  // losing power between clear() and the next NVS write still retries safely.
+  if (!adminPreferences.putBool("reset_active", true)) {
+    Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"save_guard\"}");
+    while (true) { screen.update(); delay(10); }
+  }
   // Bind the exact media partition without enabling automatic format-on-fail.
   LittleFS.begin(false, "/littlefs", 10, "spiffs"); LittleFS.end();
-  if (!LittleFS.format() || !preferences.clear()) {
+  if (!LittleFS.format() || !preferences.clear() || !preferences.putBool("factory_pending", true)) {
     preferences.putBool("factory_pending", true);
     Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"erase\"}");
     // Leave BLE closed and the retry marker in place. Never report partial success.
@@ -401,6 +457,10 @@ void companionSetup() {
   uint8_t mac[6]; esp_read_mac(mac, ESP_MAC_BT); deviceId = "mlc-s3-" + hexBytes(mac + 3, 3);
   screen.begin();
   if (!preferences.begin("mlc-s3", false)) { Serial.println("Cannot open settings; BLE remains closed."); while (true) { screen.update(); delay(10); } }
+  // Initialize the retained namespace before touching the user-data namespace.
+  if (!adminPreferences.begin("mlc-admin", false)) { Serial.println("Cannot open admin settings; BLE remains closed."); while (true) { screen.update(); delay(10); } }
+  if (adminPreferences.getBytesLength("admin_key") == sizeof(adminKey)) adminPreferences.getBytes("admin_key", adminKey, sizeof(adminKey));
+  else { esp_fill_random(adminKey, sizeof(adminKey)); if (adminPreferences.putBytes("admin_key", adminKey, sizeof(adminKey)) != sizeof(adminKey)) { Serial.println("Cannot persist admin key; BLE remains closed."); while (true) { screen.update(); delay(10); } } }
   bool factoryReset = completeFactoryReset();
   storage.begin(); updateStorageInfo();
   if (factoryReset && !storage.ready) {
@@ -411,15 +471,21 @@ void companionSetup() {
   else { esp_fill_random(ownerKey, sizeof(ownerKey)); if (preferences.putBytes("owner_key", ownerKey, sizeof(ownerKey)) != sizeof(ownerKey)) { Serial.println("Cannot persist owner key. Restart before pairing."); while (true) { screen.update(); delay(10); } } }
   // A separate namespace survives the explicit user-data reset. This is a
   // per-device generated credential, never a universal hard-coded master key.
-  if (!adminPreferences.begin("mlc-admin", false)) { Serial.println("Cannot open admin settings; BLE remains closed."); while (true) { screen.update(); delay(10); } }
-  if (adminPreferences.getBytesLength("admin_key") == sizeof(adminKey)) adminPreferences.getBytes("admin_key", adminKey, sizeof(adminKey));
-  else { esp_fill_random(adminKey, sizeof(adminKey)); if (adminPreferences.putBytes("admin_key", adminKey, sizeof(adminKey)) != sizeof(adminKey)) { Serial.println("Cannot persist admin key; BLE remains closed."); while (true) { screen.update(); delay(10); } } }
+  if (factoryReset) {
+    const String receipt = adminPreferences.getString("reset_request", "");
+    if (receipt.length() && !adminPreferences.putString("reset_done", receipt)) {
+      Serial.println("Cannot save reset completion; BLE remains closed."); while (true) { screen.update(); delay(10); }
+    }
+  }
   bleSession.reset(); usbSession.reset();
   screen.brightness(preferences.getUChar("brightness", 160));
   String savedMode = preferences.getString("mode", "auto");
   if (savedMode == "playlist" && storage.ready && screen.playPlaylist()) {}
   else if (savedMode == "media" && storage.ready && screen.playMedia(preferences.getString("media", ""))) {}
   else screen.emotion(preferences.getString("emotion", "neutral"), savedMode != "manual");
+  if (factoryReset && (!preferences.remove("factory_pending") || !adminPreferences.putBool("reset_active", false))) {
+    Serial.println("Cannot finish reset; BLE remains closed."); while (true) { screen.update(); delay(10); }
+  }
   initializeBLE();
   startAdvertising();
   Serial.printf("Device: %s. Enter 'pair' locally to obtain your private key.\n", deviceId.c_str());
@@ -428,6 +494,11 @@ void companionSetup() {
 }
 void companionLoop() {
   readSerial(); processBLE(); screen.update();
+  // Give the accepted reply time to drain. A disconnect cannot cancel a
+  // durably committed reset; completion is checked after the next boot.
+  if (resetScheduled && ((outgoing.empty() && millis() - resetScheduledAt >= 500) || millis() - resetScheduledAt >= 2500)) {
+    closeUpload(); Serial.flush(); ESP.restart();
+  }
   if (millis() - statusSince > 10000) { statusSince = millis(); Serial.printf("@MLC,frames=%lu,oled=0x%02x,mode=%s,ble=%d,storage=%d\n", (unsigned long)screen.framesSent, screen.address, screen.modeName().c_str(), connected.load(), storage.ready); }
   delay(1);
 }

@@ -5,6 +5,7 @@ import {DraftStore} from './js/storage.js';
 import {CompanionBLE} from './js/ble.js';
 import {MediaConverter} from './js/converter.js';
 import {watchPairingLinks,pairingKeyForDevice} from './js/pairing.js';
+import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let storeReady=false,saveTimer,toastTimer,saveQueue=Promise.resolve(),filter='all',activeTab='emotion',mood='happy',auto=false,photo=null,photoBytes=null,animation=null,assetSelected=null,pixelPlaying=false,pixelStart=0,assetStart=0,previewRunning=false,playlistIndex=0,playlistStarted=0,playlistFrameStarted=0;
@@ -205,6 +206,30 @@ bind('playlist-preview',()=>{if(!state.playlist.items.some(i=>i.enabled))throw n
 const browserSupported=!!navigator.bluetooth&&isSecureContext;
 $('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先畫畫、做作品，再連線同步。';
 let pairingKey=null,pairingDevice=null,pairingURL=null,pairingRevision=0,authorizationCount=0,connecting=false;
+let ownerURL=null,resetBusy=false,pendingReset=null;
+function clearOwnerQR(){ownerURL=null;$('owner-pairing-card').hidden=true;$('owner-pairing-link').value='';$('owner-link-fallback').hidden=true;const c=$('owner-pairing-qr');c.getContext('2d').clearRect(0,0,c.width,c.height);}
+function updateAdminTools(){
+  const admin=ble.connected&&ble.authorized&&ble.role==='admin',resetSupported=ble.info?.capabilities?.includes('factory_reset'),pairingSupported=ble.info?.capabilities?.includes('owner_pairing');
+  $('factory-reset').disabled=!admin||!resetSupported||resetBusy||syncing;
+  $('read-owner-pairing').disabled=!admin||!pairingSupported||resetBusy||syncing;
+  $('admin-help').textContent=!ble.connected?'請掃描管理員 QR 卡並連線，才能管理配對卡與恢復出廠。':!ble.authorized?'請完成管理員授權。':!admin?'目前是一般授權。請重新掃描管理員 QR 卡，網頁會切換成管理員。':!resetSupported||!pairingSupported?'這台吊飾需要更新至 0.3.4-s3 或更新版本，才能使用網頁恢復出廠與配對卡功能。':'管理員已授權，可取得一般配對卡或完整恢復出廠。';
+}
+async function readOwnerQR(){
+  clearOwnerQR();const pairing=await ble.ownerPairing();ownerURL=ownerPairingURL(pairing,location.href);
+  drawPairingQR($('owner-pairing-qr'),ownerURL);$('owner-pairing-device').textContent=pairing.device;$('owner-pairing-card').hidden=false;
+}
+async function checkPendingReset(){
+  if(ble.role!=='admin'||!ble.info?.capabilities?.includes('factory_reset'))return;
+  const device=ble.info.device_id,epoch=ble.connectionEpoch;
+  const pending=storeReady?await store.get('reset:'+device):pendingReset;
+  if(!pending||pending.device!==device||!ble.connected||ble.connectionEpoch!==epoch)return;
+  pendingReset=pending;const receipt=await ble.command('FACTORY_RESET_STATUS',{},'factory_reset');
+  if(!ble.connected||ble.connectionEpoch!==epoch)return;
+  if(!resetReceiptMatches(receipt,pending)){$('factory-reset-status').textContent='尚未收到這次恢復出廠的完成紀錄。若剛才中斷，請稍後重新連線檢查；網頁不會自動再次清除。';return;}
+  pendingReset=null;if(storeReady)await store.put('reset:'+device,null);
+  $('factory-reset-status').textContent='已確認恢復出廠完成。舊一般 QR 已失效，下方是新的朋友配對 QR。';
+  $('device-brightness').value=160;await readOwnerQR();toast('恢復出廠已完成，管理員碼已保留。');
+}
 watchPairingLinks(window,pairing=>{
   pairingKey=pairing.key;pairingDevice=pairing.device;pairingURL=pairing.url;pairingRevision++;
   $('pairing-setup').hidden=false;
@@ -249,6 +274,7 @@ async function authorize(){
     pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;
     $('pairing-message').textContent=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。下次使用時，重新掃描小卡即可。';
     $('auth-key').value='';toast(ble.role==='admin'?'管理員已授權，可以控制小伴。':'已連線並授權，可以傳送作品。');
+    await checkPendingReset();
   }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
 }
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
@@ -256,23 +282,47 @@ ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
   $('info-battery').textContent=Number.isFinite(info?.battery_mv)?`${(info.battery_mv/1000).toFixed(2)} V${Number.isFinite(info.battery_percent)?' · 約 '+info.battery_percent+'%':''}`:'—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
   $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
+  if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
+bind('read-owner-pairing',async()=>{await readOwnerQR();toast('一般配對卡已讀取，可以交給朋友。');});
+bind('download-owner-qr',async()=>{
+  if(!ownerURL)throw new Error('請先讀取一般配對卡。');
+  const blob=await new Promise(resolve=>$('owner-pairing-qr').toBlob(resolve,'image/png'));
+  if(!blob)throw new Error('圖片尚未產生，請再試一次。');
+  download(blob,`小伴-一般配對-${ble.info.device_id}.png`,'image/png');
+});
+bind('copy-owner-link',async()=>{
+  if(!ownerURL)throw new Error('請先讀取一般配對卡。');
+  try{await navigator.clipboard.writeText(ownerURL);toast('一般配對網址已複製，可以交給朋友。');}
+  catch{$('owner-pairing-link').value=ownerURL;$('owner-link-fallback').hidden=false;$('owner-pairing-link').focus();$('owner-pairing-link').select();toast('請長按配對網址，選擇複製。');}
+});
+bind('factory-reset',async()=>{
+  ble.requireAdmin('factory_reset');const info=ble.info,epoch=ble.connectionEpoch;
+  if(!await confirmAction('完整恢復出廠？',`將清除「${info.name||info.device_id}」的全部照片、動畫、播放清單與設定，更換一般授權碼。舊一般 QR 會失效；管理員碼和手機草稿保留。吊飾會重開機，之後請用管理員卡重新連線，取得新的朋友配對 QR。`,'清除並恢復出廠'))return;
+  if(!ble.connected||ble.connectionEpoch!==epoch||ble.info!==info)throw new Error('確認期間連線已改變，請重新操作。');
+  resetBusy=true;updateAdminTools();clearOwnerQR();
+  try{
+    await ble.factoryReset(async pending=>{pendingReset=pending;if(storeReady)await store.put('reset:'+pending.device,pending);});
+    $('factory-reset-status').textContent='吊飾已接受重設要求，正在重新開機。請在 5 分鐘內用管理員卡重新連線；連線後會核對完成紀錄並產生新的一般 QR。';
+  }catch(error){$('factory-reset-status').textContent='重設結果尚未確認。請用管理員卡重新連線檢查，避免重複清除。';throw error;}
+  finally{resetBusy=false;updateAdminTools();}
+});
 bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});bind('resume-playlist',async()=>{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('已恢復播放清單。');});
 let syncing=false;
 function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=p;$('transfer-detail').textContent=detail;}
 async function transferAsset(asset){
   if(syncing)throw new Error('正在同步，請等這次傳送完成。');
-  syncing=true;progressPanel(`傳送「${asset.name}」`,0,'正在準備…');
-  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;$('transfer-panel').hidden=true;}
+  syncing=true;updateAdminTools();progressPanel(`傳送「${asset.name}」`,0,'正在準備…');
+  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;updateAdminTools();$('transfer-panel').hidden=true;}
 }
 bind('cancel-transfer',()=>ble.cancel());
 bind('sync-playlist',async()=>{
-  ble.capability('playlist');if(syncing)throw new Error('正在同步，請等這次完成。');
+  ble.capability('playlist');if(syncing||ble.busy||resetBusy)throw new Error('正在同步或恢復出廠，請等這次完成。');
   validatePlaylist(state.playlist,state.assets);if(!state.playlist.items.some(i=>i.enabled))throw new Error('先啟用至少一個清單項目吧。');
-  const snapshot=structuredClone(state),assets=snapshot.assets.filter(a=>snapshot.playlist.items.some(i=>i.type!=='emotion'&&i.id===a.id));if(assets.length)ble.capability('media');syncing=true;$('sync-playlist').disabled=true;ble.cancelRequested=false;
+  const snapshot=structuredClone(state),assets=snapshot.assets.filter(a=>snapshot.playlist.items.some(i=>i.type!=='emotion'&&i.id===a.id));if(assets.length)ble.capability('media');syncing=true;updateAdminTools();$('sync-playlist').disabled=true;ble.cancelRequested=false;
   try{for(let i=0;i<assets.length;i++){if(ble.cancelRequested)throw new Error('已取消同步');await ble.upload(assets[i],(p,sent,total)=>progressPanel(`同步作品 ${i+1} / ${assets.length}`,(i+p)/(assets.length+1),`${assets[i].name} · ${formatBytes(sent)} / ${formatBytes(total)}`));}
     if(ble.cancelRequested)throw new Error('已取消同步');progressPanel('儲存播放清單',.95,'作品傳送完成，正在確認清單…');await ble.request('SET_PLAYLIST',{playlist:snapshot.playlist},30000);toast('清單和作品都同步好了。');
-  }finally{syncing=false;$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;}
+  }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;}
 });
 bind('refresh-remote',async()=>{
   const result=await ble.command('LIST_MEDIA',{},'media');const list=$('remote-library');list.replaceChildren();

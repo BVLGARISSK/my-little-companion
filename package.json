@@ -10,6 +10,11 @@
     "test": "node --test tests/*.test.mjs",
     "check": "node tools/check.mjs"
   },
-  "dependencies": {"gifuct-js": "2.1.2"},
-  "devDependencies": {"esbuild": "0.25.12"}
+  "dependencies": {
+    "gifuct-js": "2.1.2",
+    "qrcode-generator": "2.0.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
 }

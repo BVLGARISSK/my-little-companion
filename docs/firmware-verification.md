@@ -1,5 +1,17 @@
 # ESP32-S3 實機驗證 · 2026-10-10
 
+## v0.3.4-s3 網頁管理員重設 · 2026-10-11
+
+經使用者同意更新，同一台 COM5 / mlc-s3-d1a6a5 已寫入 v0.3.4-s3，各寫入區段雜湊驗證通過。程式 731389 bytes / 1310720 bytes，靜態 RAM 37420 bytes / 327680 bytes。僅寫入 bootloader、原分區表、boot_app0 與 application，沒有擦除 NVS／媒體分區；更新前私有 NVS 備份留在本機。
+
+- 寫入前後 USB 比對一般／管理員碼，都與現有卡片逐字一致；原作品／清單均為 0、亮度 160、auto 模式、OLED 0x3C。
+- USB 實測未授權無法取得一般碼；一般 owner 對 GET_OWNER_PAIRING、FACTORY_RESET_PREPARE、FACTORY_RESET、FACTORY_RESET_STATUS 都收到 ADMIN_REQUIRED。管理員可取得加密配對資料及重設狀態。
+- USB 與 Windows 真實 BLE（CONTROL 20-byte 分包）測試管理員 PREPARE，再以錯誤目標提交，收到 RESET_CONFIRMATION；USB再用同一 token 及正確目標也遭拒，證明錯誤提交會消耗 token。重新 AUTH 後，先前準備 token 同樣失效。測試沒有執行有效的清除提交。
+- firmware mbedTLS AES-256-GCM 回傳一般碼的密文，USB／Windows BLE 兩份都通過網頁 WebCrypto 解密，與 USB 原始一般码相同，沒有明文 key 欄位。QR 獨立 ZXing 解碼內容也相同。
+- 管理員 key 不透過 BLE 回傳。BLE 重設需管理員身分、匹配装置 ID 與 60 秒單次 token；與普通控制、作品傳送各有保護。新加 `mlc-admin/reset_active` 清除守衛不隨使用者 namespace 清除，可在清除中斷電後重試；完成紀錄在新普通碼與儲存區完成後保存。
+
+本版有效清除提交、重開機後相同重設 ID 的完成紀錄、iPhone／Bluefy 清除與重連仍待使用者按確認驗收。沒有刻意拔電驗證清除守衛。下方保留 v0.3.3 的實際 USB 清除與管理員碼保留結果，不能將它當成本版 BLE 完整清除成功的證據。
+
 ## v0.3.3-s3 持續有效的管理員授權 · 2026-10-11
 
 同一台 COM5 / mlc-s3-d1a6a5 已寫入 v0.3.3-s3，各寫入區段雜湊驗證通過。程式 704517 bytes / 1310720 bytes，靜態 RAM 37228 bytes / 327680 bytes；10 份編譯來源與交付原始碼相符。

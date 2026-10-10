@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#faf8f3"><meta name="description" content="替你的 OLED 小夥伴換個心情。畫畫、照片、動畫與播放清單，先在手機慢慢做，再用藍牙同步。">
+  <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css"><title>小伴 · My Little Companion</title>
+</head>
+<body>
+<svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+  <symbol id="i-face" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="6"/><path d="M8 10v2m8-2v2m-8 3q4 3 8 0"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="m4 16-1 5 5-1L20 8q2-2 0-4t-4 0L4 16Zm11-11 4 4M4 16l4 4"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7 3v18m10-18v18M3 8h4m-4 8h4m10-8h4m-4 8h4m-10-6 3 2-3 2Z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></symbol>
+  <symbol id="i-device" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="16" rx="4"/><rect x="8" y="9" width="8" height="6" rx="2"/><path d="M10 5V3a2 2 0 0 1 4 0v2m-3 13h2"/></symbol>
+  <symbol id="i-bluetooth" viewBox="0 0 24 24"><path d="m6 7 12 10-6 5V2l6 5L6 17"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20 4 12C-2 5 7-1 12 6c5-7 14-1 8 6Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></symbol>
+</defs></svg>
+<header class="topbar">
+  <a class="brand" href="#" aria-label="小伴首頁"><img src="./assets/companion.svg" alt="" width="42" height="42"><span>小伴<small>my little companion</small></span></a>
+  <button id="connect-top" class="button connect"><svg><use href="#i-bluetooth"/></svg><span id="connect-label">連接小夥伴</span><span class="connection-dot" id="connection-dot"></span></button>
+</header>
+<div class="app-shell">
+  <nav class="tabs" aria-label="主要功能">
+    <button data-tab="emotion" class="tab active" aria-current="page"><svg><use href="#i-face"/></svg><span>表情</span></button>
+    <button data-tab="library" class="tab"><svg><use href="#i-photo"/></svg><span>作品</span></button>
+    <button data-tab="pixel" class="tab"><svg><use href="#i-pencil"/></svg><span>畫畫</span></button>
+    <button data-tab="animation" class="tab"><svg><use href="#i-film"/></svg><span>動畫</span></button>
+    <button data-tab="playlist" class="tab"><svg><use href="#i-list"/></svg><span>播放</span></button>
+    <button data-tab="device" class="tab"><svg><use href="#i-device"/></svg><span>裝置</span></button>
+  </nav>
+  <main>
+    <section id="view-emotion" class="view">
+      <div class="page-heading"><div><p class="eyebrow">A LITTLE FRIEND, A LITTLE JOY</p><h1>今天，想用什麼心情？<span class="flower">✳</span></h1><p>把一點點快樂，放進你的口袋裡。</p></div><span class="badge preview-badge" id="preview-badge">手機預覽</span></div>
+      <div class="emotion-layout">
+        <div class="companion-card">
+          <span class="little-note">hi, i'm here for you.</span><span class="floating-heart">♡</span>
+          <div class="keychain"><div class="keychain-ring"></div><div class="device-body"><canvas id="face-canvas" width="384" height="192" aria-label="OLED 表情預覽"></canvas><span class="device-mark">little companion</span></div></div>
+          <div class="companion-caption"><span class="green-dot"></span><span id="mood-caption">小伴現在很開心</span></div>
+          <p class="small">128 × 64 的小世界，也裝得下好多心情。</p>
+        </div>
+        <div class="mood-panel"><div class="section-title"><h2>挑一個表情</h2><span class="small">眨眨眼，陪陪你</span></div><div id="emotion-grid" class="emotion-grid"></div>
+          <div class="divider"></div><label class="toggle-row"><div><strong>自由變換心情</strong><span>讓小伴自己眨眼、看看周圍</span></div><input id="emotion-auto" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <button id="emotion-apply" class="button primary full"><svg><use href="#i-heart"/></svg>把這個心情送給小伴</button>
+          <p class="hint" id="emotion-hint">可以先玩玩預覽，連線後再傳送給吊飾。</p>
+        </div>
+      </div>
+      <div class="quick-grid"><button class="quick-card" data-go="library"><span class="icon-tile peach"><svg><use href="#i-photo"/></svg></span><span><strong>把回憶變成小畫面</strong><small>相簿照片，變成黑白小作品</small></span><svg class="arrow"><use href="#i-arrow"/></svg></button><button class="quick-card" data-go="pixel"><span class="icon-tile sage"><svg><use href="#i-pencil"/></svg></span><span><strong>畫一點自己的可愛</strong><small>一顆愛心，或只有你們懂的圖案</small></span><svg class="arrow"><use href="#i-arrow"/></svg></button></div>
+      <p class="footnote"><svg><use href="#i-spark"/></svg>作品先存在這台手機，準備好了再開啟吊飾同步。</p>
+    </section>
+
+    <section id="view-library" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">YOUR TINY COLLECTION</p><h1>把喜歡的，收在這裡。</h1><p>照片、塗鴉和小動畫，都有自己的位置。</p></div><button id="import-photo" class="button primary"><svg><use href="#i-plus"/></svg>加入照片</button></div>
+      <input id="photo-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,.ola" hidden>
+      <div id="photo-editor" class="card editor-card" hidden><div class="split"><div><canvas id="photo-canvas" class="oled-preview" width="512" height="256" aria-label="照片黑白預覽"></canvas><p class="small center">亮起來的像素，就是吊飾上看得到的部分。</p></div><div class="controls">
+        <label>作品名稱<input id="photo-name" maxlength="60" placeholder="取一個可愛的名字"></label>
+        <label>黑白分界 <output id="threshold-output">128</output><input id="photo-threshold" type="range" min="0" max="255" value="128"></label>
+        <label>對比<input id="photo-contrast" type="range" min="0.5" max="2.5" value="1" step="0.05"></label>
+        <label>亮度<input id="photo-brightness" type="range" min="-100" max="100" value="0"></label>
+        <div class="two-controls"><label>左右裁切<input id="photo-x" type="range" min="0" max="1" step="0.01" value="0.5"></label><label>上下裁切<input id="photo-y" type="range" min="0" max="1" step="0.01" value="0.5"></label></div>
+        <label>放大裁切<input id="photo-zoom" type="range" min="1" max="3" value="1" step="0.05"></label>
+        <div class="inline"><label class="check"><input id="photo-dither" type="checkbox">照片抖色</label><label class="check"><input id="photo-invert" type="checkbox">黑白反轉</label></div>
+        <div class="button-row"><button id="save-photo" class="button primary">存進作品集</button><button id="close-photo" class="button soft">收起</button></div>
+      </div></div></div>
+      <div class="section-title"><h2>我的作品 <span id="asset-count" class="count">0</span></h2><div class="segmented" aria-label="作品類型"><button data-filter="all" class="active">全部</button><button data-filter="image">圖片</button><button data-filter="animation">動畫</button></div></div>
+      <div id="library-grid" class="library-grid"></div><div id="library-empty" class="empty"><svg><use href="#i-photo"/></svg><h3>這裡等著你的第一個小作品</h3><p>加入一張照片，或去畫畫頁畫一顆愛心吧。</p><button class="button soft" data-go="pixel">去畫畫</button></div>
+    </section>
+
+    <section id="view-pixel" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">MADE WITH A LITTLE LOVE</p><h1>一筆一筆，畫出喜歡。</h1><p>用手指畫，也能做一段專屬的小動畫。</p></div></div>
+      <div class="card"><div class="section-title"><div class="segmented"><button data-tool="pen" class="active">畫筆</button><button data-tool="eraser">橡皮擦</button><button data-tool="fill">填色</button></div><div class="button-row"><button id="pixel-undo" class="button tiny" aria-label="復原">↶</button><button id="pixel-redo" class="button tiny" aria-label="重做">↷</button><button id="pixel-clear" class="button tiny">清空這格</button></div></div>
+        <canvas id="pixel-canvas" class="pixel-canvas" width="768" height="384" tabindex="0" aria-label="像素畫布；用手指或滑鼠繪圖"></canvas>
+        <div class="canvas-settings"><label>畫布<select id="pixel-size"><option value="32">32 × 16 · 好上手</option><option value="64">64 × 32 · 多一點細節</option><option value="128">128 × 64 · 完整像素</option></select></label><label>筆刷<select id="pixel-brush"><option value="1">1 格</option><option value="2">2 格</option><option value="3">3 格</option></select></label><label class="check"><input id="pixel-onion" type="checkbox" checked>看見上一格</label></div>
+        <div class="section-title"><h3>小動畫的每一格</h3><span id="frame-count" class="small">1 / 100 格</span></div><div id="frame-strip" class="frame-strip"></div>
+        <div class="button-row wrap"><button id="frame-add" class="button soft">＋ 新的一格</button><button id="frame-copy" class="button soft">複製這格</button><button id="frame-left" class="button tiny" aria-label="影格往前移">←</button><button id="frame-right" class="button tiny" aria-label="影格往後移">→</button><button id="frame-delete" class="button tiny">刪除這格</button><button id="pixel-play" class="button sage-button">▶ 預覽</button></div>
+        <div class="divider"></div><div class="save-row"><label>作品名稱<input id="pixel-name" maxlength="60" value="我的小塗鴉"></label><label>動畫速度<select id="pixel-fps"><option value="5">5 FPS</option><option value="8" selected>8 FPS</option><option value="10">10 FPS</option></select></label><button id="pixel-save" class="button primary">存進作品集</button></div>
+        <p id="pixel-save-state" class="hint">畫板會自動存草稿，儲存後才會出現在作品集。</p>
+      </div>
+    </section>
+
+    <section id="view-animation" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">LITTLE MOMENTS, ON REPEAT</p><h1>讓小畫面，動起來。</h1><p>一段短影片、一個 GIF，變成口袋裡的小故事。</p></div></div>
+      <div class="card"><input id="animation-file" type="file" accept="image/gif,video/*,.ola" hidden><button id="import-animation" class="upload-zone"><span class="icon-tile peach"><svg><use href="#i-film"/></svg></span><strong>選一段 GIF 或短影片</strong><span>最長 10 秒 · 最多 100 格 · 檔案留在這台手機</span></button>
+        <div id="animation-editor" hidden><div class="divider"></div><div class="split"><div><video id="source-video" controls muted playsinline preload="metadata" hidden></video><canvas id="animation-canvas" class="oled-preview" width="512" height="256" aria-label="動畫黑白預覽"></canvas><p id="animation-info" class="small center"></p><div class="button-row justify-center"><button id="animation-play" class="button soft">▶ 預覽動畫</button></div></div><div class="controls"><label>作品名稱<input id="animation-name" maxlength="60" placeholder="這段回憶的名字"></label><div class="two-controls"><label>開始秒數<input id="animation-start" type="number" min="0" value="0" step="0.1"></label><label>長度（秒）<input id="animation-duration" type="number" min="0.1" max="10" value="5" step="0.1"></label></div><label>動畫速度<select id="animation-fps"><option value="5">5 FPS · 輕巧</option><option value="8" selected>8 FPS · 剛剛好</option><option value="10">10 FPS · 更流暢</option></select></label><label>黑白分界<input id="animation-threshold" type="range" min="0" max="255" value="128"></label><label class="check"><input id="animation-dither" type="checkbox">用抖色保留照片細節</label><label class="check"><input id="animation-invert" type="checkbox">黑白反轉</label><button id="convert-animation" class="button primary">轉成小動畫</button><button id="save-animation" class="button sage-button" disabled>存進作品集</button></div></div><progress id="convert-progress" max="1" value="0" hidden></progress></div>
+        <p class="hint">影片解碼依手機瀏覽器支援，建議使用 H.264 MP4。轉換時請保持網頁開啟。</p>
+      </div>
+    </section>
+
+    <section id="view-playlist" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">A DAY IN YOUR LITTLE WORLD</p><h1>安排小伴的日常。</h1><p>讓表情和作品，照你喜歡的順序出場。</p></div><button id="playlist-preview" class="button sage-button">▶ 手機預覽</button></div>
+      <div class="card"><div class="playlist-toolbar"><label>播放方式<select id="playlist-mode"><option value="loop">一直循環</option><option value="shuffle">隨機驚喜</option><option value="once">播放一次</option></select></label><div class="button-row"><select id="playlist-add-select" aria-label="選擇要加入的內容"></select><button id="playlist-add" class="button soft">＋ 加入</button></div></div><div id="playlist-items" class="playlist-items"></div><p id="playlist-empty" class="empty-mini">先加入一個表情或作品，開始小伴的一天。</p><div class="divider"></div><div class="sync-row"><p class="small">拖曳排序，或用箭頭移動。草稿會自動儲存。</p><button id="sync-playlist" class="button primary"><svg><use href="#i-bluetooth"/></svg>同步給小伴</button></div></div>
+      <div id="playlist-preview-card" class="card playlist-preview-card" hidden><div class="section-title"><h3 id="playlist-preview-name">手機預覽</h3><button id="playlist-preview-stop" class="button tiny">停止</button></div><canvas id="playlist-canvas" class="oled-preview" width="512" height="256" aria-label="播放清單預覽"></canvas></div>
+    </section>
+
+    <section id="view-device" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">TAKE CARE OF YOUR LITTLE FRIEND</p><h1>和小伴，連在一起。</h1><p>先把作品準備好，開啟吊飾後再連線。</p></div></div>
+      <div class="device-layout"><div class="card"><div class="section-title"><h2>我的小夥伴</h2><span id="device-state" class="badge">尚未連線</span></div><p id="browser-help" class="browser-help"></p><div class="steps"><span>1<small>開啟吊飾</small></span><i>→</i><span>2<small>3 分鐘內連線</small></span><i>→</i><span>3<small>傳送作品</small></span></div><div class="button-row"><button id="connect-device" class="button primary"><svg><use href="#i-bluetooth"/></svg>尋找小夥伴</button><button id="disconnect-device" class="button soft" disabled>中斷連線</button></div><div id="auth-area" hidden><div class="divider"></div><label>小卡上的授權碼<input id="auth-key" type="password" autocomplete="off" spellcheck="false" placeholder="貼上小卡的 64 位授權碼" maxlength="64"></label><label class="check"><input id="remember-key" type="checkbox">記住這台吊飾的授權碼</label><button id="authorize-device" class="button sage-button">確認是我的小伴</button></div><div class="divider"></div><dl class="device-details"><div><dt>裝置名稱</dt><dd id="info-name">等待連線</dd></div><div><dt>電池</dt><dd id="info-battery">—</dd></div><div><dt>作品空間</dt><dd id="info-storage">—</dd></div><div><dt>韌體版本</dt><dd id="info-firmware">—</dd></div></dl><label>螢幕亮度<input id="device-brightness" type="range" min="1" max="255" value="160"></label><div class="button-row"><button id="brightness-apply" class="button soft">套用亮度</button><button id="resume-playlist" class="button soft">回到播放清單</button></div></div>
+        <div class="stack"><div class="card sage-card"><svg class="card-icon"><use href="#i-heart"/></svg><h3>慢慢做，準備好再同步。</h3><p>畫圖和編輯時，吊飾不用開機。作品存在這台手機的瀏覽器裡，記得偶爾備份一下。</p><div class="button-row"><button id="export-backup" class="button soft">匯出備份</button><button id="import-backup" class="button soft">匯入備份</button></div><input id="backup-file" type="file" accept="application/json,.json" hidden><p id="storage-state" class="small">正在準備草稿箱…</p></div><div class="card"><h3>吊飾裡的作品</h3><p class="small">連線並授權後，可以讀取已儲存的作品。</p><button id="refresh-remote" class="button soft">讀取作品</button><div id="remote-library" class="remote-library"></div></div><div class="card"><h3>韌體更新</h3><p class="small">這版先完成網頁控制與創作。安全 OTA 會在吊飾韌體整合完成後開放。</p><span class="badge">等待韌體支援</span></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+<footer class="site-footer"><span>made for little everyday joys</span><span>小伴 web · v0.1</span></footer>
+<div id="transfer-panel" class="transfer-panel" hidden><div class="section-title"><strong id="transfer-label">正在傳送作品…</strong><button id="cancel-transfer" class="button tiny">取消</button></div><progress id="transfer-progress" max="1" value="0"></progress><p id="transfer-detail" class="small"></p></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
+<dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
+<script type="module" src="./app.js"></script>
+</body></html>

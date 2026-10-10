@@ -1,0 +1,64 @@
+# 小伴 · My Little Companion
+
+簡潔可愛的 OLED 吊飾控制網頁。奶油白、淡桃色、薄荷綠；手機優先，桌面也能使用。
+
+正式網址：https://bvlgarissk.github.io/my-little-companion/
+
+## 這一版完成的功能
+
+- 六種表情與眨眼預覽；手動表情、自由變換模式。
+- 照片裁切、放大、亮度、對比、二值化、Floyd–Steinberg 抖色、反色。
+- 32×16、64×32、128×64 像素畫板；畫筆、橡皮擦、填色、復原／重做。
+- 逐格複製、新增、刪除、排序、洋蔥皮與 5／8／10 FPS 預覽。
+- GIF 合成與 disposal 處理；瀏覽器可解碼影片的抽格；最多 10 秒、100 格。
+- 作品集、OLA 檔案匯入與匯出。
+- 混合表情／圖片／動畫的播放清單；拖曳及箭頭排序、播放秒數、停用、循環／隨機／一次、手機預覽。
+- IndexedDB 草稿、JSON 備份匯入／匯出。備份不包含裝置授權碼。匯入保留原有作品與畫板草稿，以備份取代播放清單。
+- 真實 Web Bluetooth GATT 客戶端：HMAC 授權、控制、上傳流量控制、ACK、CRC32、查詢續傳位置、取消、裝置作品列表。
+- 網頁殼的 Service Worker 快取；是否能離線開啟仍取決於 Bluefy／iOS 實際支援與是否完成初次快取。
+
+## 手機使用
+
+1. 在 iPhone 開啟網址，即可先做作品與手機預覽。
+2. 要使用 BLE，請在 [Bluefy](https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055) 開啟同一個 HTTPS 網址。
+3. 開啟吊飾，在 180 秒內按「連接小夥伴」。
+4. 输入小卡上的授權碼，或以含裝置 ID／授權碼的網址片段開啟網頁。
+5. 把作品加入播放清單，按「同步給小伴」。
+
+作品只保存在目前裝置、目前瀏覽器的 IndexedDB。Safari 和 Bluefy、不同手機之間不會自動共享草稿；可用 JSON 備份移轉。網頁不會把相片、影片、草稿或授權碼上傳到 GitHub。
+
+## 和 C5 韌體的界線
+
+本專案交付網頁，不包含 C5 韌體。BLE 只有在韌體實作 [docs/ble-protocol.md](docs/ble-protocol.md) 的服務、UUID、封包與指令時才會成功；原作者的表情程式本身沒有這些 BLE 功能。
+
+網頁沒有模擬裝置連線成功、電量或容量。未連線／未授權時，裝置指令會顯示明確提示。3 分鐘廣播窗口、15 秒授權期限、Flash 原子提交與充電狀態由韌體負責。
+
+OTA 刻意不開放傳輸；需先完成韌體端簽章驗證、版本／板型檢查、低電量保護及 Bootloader 回復設定。HMAC 登入不是無線內容加密；傳輸保密與加密鏈路需要另外整合。
+
+## 本機開發
+
+需要 Node.js 20 以上。已提交 `web-app/vendor/gifuct.js`，部署網站不需要 npm 或外部 CDN。
+
+```powershell
+npm ci
+npm test
+npm run check
+npm start
+```
+
+開啟 http://127.0.0.1:4173/ 。初次下載後也可直接執行 `Start-Web.cmd`，不需安裝套件。瀏覽器 ES modules 必須透過 HTTP／HTTPS 使用，不能直接雙擊 HTML 檔。
+
+修改 GIF 相依套件後執行 `npm run vendor`。`npm test` 驗證 OLA／CRC／像素格式、分包重組、授權挑戰和 mock BLE 上傳，不能代替 C5／Bluefy 實機測試。
+
+## 發布
+
+`.github/workflows/pages.yml` 在推送 `main` 時執行測試、檔案檢查，部署 `web-app/` 到 GitHub Pages。GitHub 儲存庫與網站為公開；公開檔案只有網站程式、文件與測試，不包含朋友的草稿。
+
+## 相容性
+
+- MP4 解碼取決於瀏覽器與 iOS，優先使用 H.264；HEVC／HDR 沒有實機保證。
+- GIF 在網頁端以 vendored `gifuct-js` 解碼，無須依賴瀏覽器的 ImageDecoder。
+- GIF 上限 40MB、邏輯畫面 4M pixels、2000 原始影格；照片上限 30MB。
+- Web Bluetooth 不提供通用的 MTU 查詢 API。本客戶端由裝置 INFO 取得應用封包上限，預設 20 bytes，最大 244 bytes，所有標頭也包含在上限内。
+
+程式採 MIT 授權。GIF decoder 與其 parser 的 MIT 授權保留在 `web-app/vendor/`。

@@ -8,7 +8,7 @@ const html=await readFile('web-app/index.html','utf8'),ids=[...html.matchAll(/\b
 if(ids.length!==new Set(ids).size)throw new Error('Duplicate HTML ids');
 const app=await readFile('web-app/app.js','utf8');
 for(const match of app.matchAll(/\$\('([^']+)'\)/g))if(!ids.includes(match[1])&& !match[1].endsWith('-'))throw new Error('Unknown UI id '+match[1]);
-for(const match of html.matchAll(/(?:href|src)="(\.\/[^"#]+)"/g))await stat(path.join('web-app',match[1]));
+for(const match of html.matchAll(/(?:href|src)="(\.\/[^"#]+)"/g))await stat(path.join('web-app',match[1].split(/[?#]/,1)[0]));
 const sw=await readFile('web-app/sw.js','utf8');
-for(const match of sw.matchAll(/'(\.\/[^']+)'/g))await stat(path.join('web-app',match[1]));
+for(const match of sw.matchAll(/'(\.\/[^']+)'/g))await stat(path.join('web-app',match[1].split(/[?#]/,1)[0]));
 console.log(`Checked ${all.length} website files, JS syntax, UI ids, local assets and offline shell.`);

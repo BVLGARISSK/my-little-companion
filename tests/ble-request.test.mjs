@@ -21,3 +21,27 @@ test('BLE unanswered requests still expire after sending',async()=>{
   await assert.rejects(ble.request('LIST_MEDIA',{},10),/沒有回覆/);
   assert.equal(ble.pending.size,0);
 });
+
+for(const [reportedRole,expectedRole] of [['admin','admin'],['owner','owner'],[undefined,'owner'],['unrecognized','owner']]){
+  test(`authorization uses device-reported role ${reportedRole ?? 'legacy firmware'}`,async()=>{
+    const ble=new CompanionBLE();ble.device={gatt:{connected:true}};ble.info={device_id:'test-device'};
+    const calls=[];let state;
+    ble.addEventListener('state',event=>{state=event.detail;});
+    ble.request=async(op,fields)=>{
+      calls.push({op,fields});
+      return op==='AUTH_CHALLENGE'?{ok:true,server_nonce:'b'.repeat(64)}:{ok:true,role:reportedRole};
+    };
+    await ble.authorize('a'.repeat(64));
+    assert.equal(ble.authorized,true);assert.equal(ble.role,expectedRole);
+    assert.equal(state.role,expectedRole);
+    assert.equal(calls[1].op,'AUTH');assert.match(calls[1].fields.proof,/^[a-f0-9]{64}$/);
+    ble.onDisconnect();assert.equal(ble.authorized,false);assert.equal(ble.role,null);
+  });
+}
+
+test('rejected authorization cannot create administrator state',async()=>{
+  const ble=new CompanionBLE();ble.info={device_id:'test-device'};
+  ble.request=async op=>{if(op==='AUTH_CHALLENGE')return {server_nonce:'b'.repeat(64)};throw new Error('AUTH');};
+  await assert.rejects(ble.authorize('a'.repeat(64)),/AUTH/);
+  assert.equal(ble.authorized,false);assert.equal(ble.role,null);
+});

@@ -39,14 +39,16 @@ INFO 為 UTF-8 JSON，建議 ≤512 bytes：
 
 ## 授權
 
-1. 每台吊飾有獨立的 32-byte 隨機 key；印在小卡上，網頁沒有共用密碼。
+1. 每台吊飾有獨立的 32-byte 隨機一般 key；v0.3.3-s3 另有獨立的 32-byte 隨機管理員 key，網頁沒有共用密碼。一般 key 位於 `mlc-s3`，管理員 key 位於 `mlc-admin`；本機恢復出廠只清除前者與使用者資料，保留管理員 key。
 2. 網頁產生 16-byte client nonce，CONTROL 傳 `{"op":"AUTH_CHALLENGE","client_nonce":"32 hex chars"}`。
 3. 裝置以安全亂數回覆新的 32-byte server nonce：`{"ok":true,"server_nonce":"64 hex chars"}`。綁定目前 BLE 連線與 client nonce，只能使用一次。
 4. HMAC-SHA256 的輸入為 UTF-8 `mlc/1:<device_id>:<client_nonce>:<server_nonce>`，nonce 固定小寫 hex。
-5. CONTROL `{"op":"AUTH","client_nonce":"...","proof":"64 hex chars"}`。裝置用 constant-time compare 驗證後回覆 `{"ok":true}`。錯誤、中斷、逾時都銷毀 challenge。
+5. CONTROL `{"op":"AUTH","client_nonce":"...","proof":"64 hex chars"}`。裝置對一般與管理員 key 分別計算 HMAC 並用 constant-time compare 驗證，回覆 `{"ok":true,"role":"owner"}` 或 `{"ok":true,"role":"admin"}`。網頁將舊版未回報 role 的成功授權視為 owner。錯誤、中斷、逾時都銷毀 challenge；挑戰最長 15 秒。
 6. 未授權只能讀 INFO、訂閱 EVENT、取得 challenge 和 AUTH。所有控制、上傳與刪除指令都要檢查目前連線已授權。
 
 QR 小卡網址格式：`https://bvlgarissk.github.io/my-little-companion/#device=mlc-123&key=<64hex>`。只使用 fragment，不放 query；網頁讀取後立即清除 fragment。網址沒有實際 key，文件也不能放出廠 key。使用者明確勾選「記住」才寫入當前瀏覽器 IndexedDB，備份排除 key。
+
+兩種卡片使用相同網址格式；身分依裝置驗證結果決定。管理員可使用目前所有控制、作品與清單功能，沒有新增 BLE 重設／讀取密鑰指令。管理員碼只經本機 USB `admin` 指令取得。整片 Flash／NVS 擦除不在保留承諾內。
 
 此機制用於裝置所有權驗證，不提供傳輸內容加密或對所有後續封包的端到端認證。正式送禮之前應驗證 BLE 加密鏈路／bonding 相容性，或增加經審核的 session frame 認證與加密；不要把 CRC32 說成安全簽章。
 

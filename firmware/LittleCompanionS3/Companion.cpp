@@ -16,10 +16,12 @@ namespace {
 Storage storage;
 Display screen(storage);
 Preferences preferences;
+Preferences adminPreferences;
 NimBLEServer* server;
 NimBLECharacteristic* events;
 String deviceId;
 uint8_t ownerKey[32];
+uint8_t adminKey[32];
 std::atomic<uint32_t> connectionEpoch{0}, storageFree{0}, storageTotal{0};
 std::atomic<uint16_t> connectionHandle{BLE_HS_CONN_HANDLE_NONE}, mtu{23};
 std::atomic<bool> connected{false}, subscribed{false};
@@ -29,9 +31,10 @@ bool wasConnected = false, advertising = false, windowClosed = false;
 enum Source : uint8_t { BLE, USB };
 struct Session {
   bool authorized = false;
+  bool admin = false;
   String clientNonce, serverNonce;
   uint32_t challengedAt = 0;
-  void reset() { authorized = false; clientNonce = ""; serverNonce = ""; }
+  void reset() { authorized = false; admin = false; clientNonce = ""; serverNonce = ""; }
 } bleSession, usbSession;
 struct Packet { uint32_t epoch; uint16_t handle, length; uint8_t kind; uint8_t bytes[244]; };
 QueueHandle_t packets;
@@ -110,6 +113,10 @@ void status(JsonDocument& d) {
   d["window_ms_left"] = windowClosed ? 0 : bleWindow.remaining(millis());
   d["ble_window_state"] = windowClosed ? "closed" : bleWindow.hasConnected() ? "upload_idle" : "discovery";
   d["storage_error"] = storage.error;
+  d["factory_reset_usb"] = true;
+  d["media_count"] = storage.ready ? storage.library["items"].size() : 0;
+  d["playlist_count"] = storage.ready ? storage.playlist["items"].size() : 0;
+  d["admin_key_retained_on_factory_reset"] = true;
 }
 void handle(Source source, uint16_t requestId, JsonVariantConst request) {
   String op = request["op"] | ""; Session& session = source == BLE ? bleSession : usbSession;
@@ -125,13 +132,17 @@ void handle(Source source, uint16_t requestId, JsonVariantConst request) {
   if (op == "AUTH") {
     String client = request["client_nonce"] | "", proof = request["proof"] | ""; client.toLowerCase();
     String message = String("mlc/1:") + deviceId + ":" + session.clientNonce + ":" + session.serverNonce;
-    uint8_t expected[32] = {}, supplied[32] = {};
+    uint8_t expected[32] = {}, adminExpected[32] = {}, supplied[32] = {};
     bool valid = session.serverNonce.length() == 64 && client == session.clientNonce && millis() - session.challengedAt <= 15000 && parseHex(proof, supplied, 32);
     if (mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), ownerKey, sizeof(ownerKey), reinterpret_cast<const uint8_t*>(message.c_str()), message.length(), expected) != 0) valid = false;
-    uint8_t difference = 0; for (unsigned i = 0; i < 32; ++i) difference |= expected[i] ^ supplied[i];
+    if (mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), adminKey, sizeof(adminKey), reinterpret_cast<const uint8_t*>(message.c_str()), message.length(), adminExpected) != 0) valid = false;
+    uint8_t difference = 0, adminDifference = 0;
+    for (unsigned i = 0; i < 32; ++i) { difference |= expected[i] ^ supplied[i]; adminDifference |= adminExpected[i] ^ supplied[i]; }
     session.clientNonce = ""; session.serverNonce = "";
-    if (!valid || difference) { fail(source, requestId, "AUTH", "Incorrect key or expired challenge."); return; }
-    session.authorized = true; success(source, requestId); return;
+    if (!valid || (difference && adminDifference)) { fail(source, requestId, "AUTH", "Incorrect key or expired challenge."); return; }
+    session.authorized = true; session.admin = adminDifference == 0;
+    response["role"] = session.admin ? "admin" : "owner";
+    reply(source, requestId, response.as<JsonVariantConst>()); return;
   }
   if (!session.authorized) { fail(source, requestId, "UNAUTHORIZED", "Authorize this connection first."); return; }
   if (op == "SET_EMOTION") {
@@ -282,6 +293,7 @@ class InfoCallbacks : public NimBLECharacteristicCallbacks {
     JsonDocument d; d["protocol"] = "mlc/1"; d["device_id"] = deviceId; d["name"] = "Little Companion S3"; d["firmware"] = config::VERSION;
     d["max_write_bytes"] = min(uint16_t(244), uint16_t(max(uint16_t(23), info.getMTU()) - 3));
     JsonArray caps = d["capabilities"].to<JsonArray>(); caps.add("emotion"); caps.add("brightness");
+    caps.add("admin_auth");
     if (storage.ready) { caps.add("media"); caps.add("playlist"); d["storage_total"] = storageTotal.load(); d["storage_free"] = storageFree.load(); }
     String text; serializeJson(d, text); c->setValue(text.c_str());
   }
@@ -302,10 +314,33 @@ void initializeBLE() {
   auto a = NimBLEDevice::getAdvertising(); a->addServiceUUID(config::SERVICE); a->enableScanResponse(true); a->setName("Little Companion S3");
   s->start(); bleWindow.open(millis());
 }
-void printPair() {
-  JsonDocument d; d["device_id"] = deviceId; d["key"] = hexBytes(ownerKey, sizeof(ownerKey));
-  d["url"] = String("https://bvlgarissk.github.io/my-little-companion/#device=") + deviceId + "&key=" + hexBytes(ownerKey, sizeof(ownerKey));
-  Serial.print("@PAIR,"); serializeJson(d, Serial); Serial.println();
+void printPair(bool admin = false) {
+  const uint8_t* key = admin ? adminKey : ownerKey;
+  JsonDocument d; d["device_id"] = deviceId; d["key"] = hexBytes(key, 32);
+  d["url"] = String("https://bvlgarissk.github.io/my-little-companion/#device=") + deviceId + "&key=" + hexBytes(key, 32);
+  Serial.print(admin ? "@ADMIN," : "@PAIR,"); serializeJson(d, Serial); Serial.println();
+}
+void requestFactoryReset() {
+  // Local USB only. The device id is an explicit confirmation of the target.
+  // Persist intent before reboot so a power loss during formatting is retried.
+  if (!preferences.putBool("factory_pending", true)) {
+    Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"save_intent\"}");
+    return;
+  }
+  Serial.println("@FACTORY_RESET,{\"ok\":true,\"stage\":\"restarting\"}");
+  Serial.flush(); delay(100); ESP.restart();
+}
+bool completeFactoryReset() {
+  if (!preferences.getBool("factory_pending", false)) return false;
+  // Bind the exact media partition without enabling automatic format-on-fail.
+  LittleFS.begin(false, "/littlefs", 10, "spiffs"); LittleFS.end();
+  if (!LittleFS.format() || !preferences.clear()) {
+    preferences.putBool("factory_pending", true);
+    Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"erase\"}");
+    // Leave BLE closed and the retry marker in place. Never report partial success.
+    while (true) { screen.update(); delay(10); }
+  }
+  return true;
 }
 void readSerial() {
   static String line; static bool tooLong = false;
@@ -315,6 +350,11 @@ void readSerial() {
     if (c != '\n') { if (line.length() < config::MAX_JSON) line += c; else tooLong = true; continue; }
     if (tooLong) { line = ""; tooLong = false; Serial.println("Serial request too long."); continue; }
     if (line == "pair") printPair();
+    else if (line == "admin") printPair(true);
+    else if (line == String("factory-reset ") + deviceId) requestFactoryReset();
+    else if (line == "factory-reset" || line.startsWith("factory-reset ")) {
+      Serial.print("To erase all works/settings and replace the key, send: factory-reset "); Serial.println(deviceId);
+    }
     else if (line == "ble") { bleWindow.open(millis(), connected.load()); windowClosed = false; startAdvertising(); Serial.println("BLE window reopened: 5 minutes to connect, 10 minutes without an upload after connecting."); }
     else if (line == "rotate") screen.rotate(true);
     else if (line == "normal") screen.rotate(false);
@@ -323,7 +363,7 @@ void readSerial() {
       JsonDocument d;
       if (deserializeJson(d, line) || !d.is<JsonObject>()) fail(USB, 0, "JSON", "Invalid diagnostic request.");
       else handle(USB, d["rid"] | uint16_t(1), d.as<JsonVariantConst>());
-    } else if (line.length()) Serial.println("Commands: status / pair / ble / rotate / normal; JSON diagnostic requests also supported.");
+    } else if (line.length()) Serial.println("Commands: status / pair / admin / ble / rotate / normal / factory-reset <device_id>; JSON diagnostic requests also supported.");
     line = "";
   }
 }
@@ -358,21 +398,33 @@ void companionSetup() {
   Serial.setRxBufferSize(8192);
   Serial.begin(115200); delay(300);
   Serial.printf("\nLittle Companion ESP32-S3 %s\n", config::VERSION);
-  screen.begin(); storage.begin(); updateStorageInfo();
-  initializeBLE();
   uint8_t mac[6]; esp_read_mac(mac, ESP_MAC_BT); deviceId = "mlc-s3-" + hexBytes(mac + 3, 3);
-  preferences.begin("mlc-s3", false);
+  screen.begin();
+  if (!preferences.begin("mlc-s3", false)) { Serial.println("Cannot open settings; BLE remains closed."); while (true) { screen.update(); delay(10); } }
+  bool factoryReset = completeFactoryReset();
+  storage.begin(); updateStorageInfo();
+  if (factoryReset && !storage.ready) {
+    Serial.println("@FACTORY_RESET,{\"ok\":false,\"stage\":\"initialize_storage\"}");
+    while (true) { screen.update(); delay(10); }
+  }
   if (preferences.getBytesLength("owner_key") == sizeof(ownerKey)) preferences.getBytes("owner_key", ownerKey, sizeof(ownerKey));
   else { esp_fill_random(ownerKey, sizeof(ownerKey)); if (preferences.putBytes("owner_key", ownerKey, sizeof(ownerKey)) != sizeof(ownerKey)) { Serial.println("Cannot persist owner key. Restart before pairing."); while (true) { screen.update(); delay(10); } } }
+  // A separate namespace survives the explicit user-data reset. This is a
+  // per-device generated credential, never a universal hard-coded master key.
+  if (!adminPreferences.begin("mlc-admin", false)) { Serial.println("Cannot open admin settings; BLE remains closed."); while (true) { screen.update(); delay(10); } }
+  if (adminPreferences.getBytesLength("admin_key") == sizeof(adminKey)) adminPreferences.getBytes("admin_key", adminKey, sizeof(adminKey));
+  else { esp_fill_random(adminKey, sizeof(adminKey)); if (adminPreferences.putBytes("admin_key", adminKey, sizeof(adminKey)) != sizeof(adminKey)) { Serial.println("Cannot persist admin key; BLE remains closed."); while (true) { screen.update(); delay(10); } } }
   bleSession.reset(); usbSession.reset();
   screen.brightness(preferences.getUChar("brightness", 160));
   String savedMode = preferences.getString("mode", "auto");
   if (savedMode == "playlist" && storage.ready && screen.playPlaylist()) {}
   else if (savedMode == "media" && storage.ready && screen.playMedia(preferences.getString("media", ""))) {}
   else screen.emotion(preferences.getString("emotion", "neutral"), savedMode != "manual");
+  initializeBLE();
   startAdvertising();
   Serial.printf("Device: %s. Enter 'pair' locally to obtain your private key.\n", deviceId.c_str());
   Serial.printf("Storage: %s; %lu free bytes.\n", storage.ready ? "ready" : storage.error.c_str(), (unsigned long)storageFree.load());
+  if (factoryReset) Serial.println("@FACTORY_RESET,{\"ok\":true,\"stage\":\"complete\"}");
 }
 void companionLoop() {
   readSerial(); processBLE(); screen.update();

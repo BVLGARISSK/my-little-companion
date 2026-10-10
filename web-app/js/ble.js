@@ -2,7 +2,7 @@ import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} fro
 import {crc32,encodeOLA} from './media.js';
 
 export class CompanionBLE extends EventTarget {
-  constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.busy=false;this.info=null;this.latestAck=null;}
+  constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.latestAck=null;}
   get connected(){return !!this.device?.gatt?.connected;}
   emit(name,detail){this.dispatchEvent(new CustomEvent(name,{detail}));}
   async connect(){
@@ -23,7 +23,7 @@ export class CompanionBLE extends EventTarget {
     }catch(error){this.disconnect();throw error;}
   }
   onDisconnect(){
-    this.authorized=false;this.info=null;this.assembler.clear();this.latestAck=null;
+    this.authorized=false;this.role=null;this.info=null;this.assembler.clear();this.latestAck=null;
     for(const p of this.pending.values())p.reject(new Error('連線中斷；已完成的作品會留在吊飾。'));this.pending.clear();
     this.ackWaiter?.reject(new Error('連線中斷，重新連線後可再同步。'));this.ackWaiter=null;
     this.emit('state',{connected:false,authorized:false,info:null});
@@ -70,8 +70,8 @@ export class CompanionBLE extends EventTarget {
     const clientNonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
     const challenge=await this.request('AUTH_CHALLENGE',{client_nonce:clientNonce});
     const proof=await authProof(key,this.info.device_id,clientNonce,challenge.server_nonce);
-    await this.request('AUTH',{client_nonce:clientNonce,proof});this.authorized=true;
-    this.emit('state',{connected:true,authorized:true,info:this.info});
+    const result=await this.request('AUTH',{client_nonce:clientNonce,proof});this.authorized=true;this.role=result.role==='admin'?'admin':'owner';
+    this.emit('state',{connected:true,authorized:true,role:this.role,info:this.info});
   }
   requireAuth(){if(!this.connected||!this.authorized)throw new Error('請先連線，並在裝置頁輸入小卡上的授權碼。');}
   capability(name){this.requireAuth();if(!this.info?.capabilities?.includes(name))throw new Error('吊飾韌體還沒開放這個功能。');}

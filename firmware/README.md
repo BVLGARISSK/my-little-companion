@@ -13,6 +13,8 @@
 - 圖庫與播放清單各保留兩份帶序號／CRC的日誌，先寫新媒體再提交索引。驗證失敗保留舊作品。日常掛載失敗不格式化；只有逐位元確認**整個分割區都是0xFF**的首次空白區才初始化。
 - 清單支援表情、圖片、動畫、loop／shuffle／once、秒數、停用與動畫repeat；被清單引用的作品拒絕刪除或換成不同類型。
 - 亮度、播放模式、手動表情／媒體、清單可在重開機後恢復。
+- v0.3.2-s3 新增本機 USB 恢復出廠：清除全部作品、清單、使用者設定與原一般密鑰，重開機產生新一般密鑰；舊的一般配對網址／QR 失效。普通 RESET 按鍵只重新開機。
+- v0.3.3-s3 新增每台裝置獨立隨機的管理員授權碼，另存 `mlc-admin` NVS namespace；一般恢復出廠會保留它。一般使用者與管理員都能操作目前的表情、亮度、作品與清單，AUTH 回覆分別為 `role: owner`／`role: admin`。
 
 ## 編譯與上傳
 
@@ -26,6 +28,7 @@ PowerShell可執行：
 .\Build.ps1
 .\Upload.ps1 -PortName COM5
 .\Pair.ps1 -PortName COM5
+.\Pair.ps1 -PortName COM5 -Admin
 ```
 
 `Build.ps1`需要電腦先安裝Arduino ESP32 core 3.3.12；它會安裝上述三個固定版本程式庫。`Upload.ps1`不會執行整片Flash erase。燒錄前請備份目前Flash並關閉所有序列監控工具。
@@ -42,9 +45,23 @@ Safari仍可製作作品；BLE需要支援Web Bluetooth的瀏覽器。不同瀏�
 
 ## USB診斷
 
-序列速率115200、換行送出：`status`查看OLED地址／畫面CRC／儲存狀態，以及`ble_window_state`（discovery／upload_idle／closed）、`window_ms_left`與`uptime_ms`；`pair`取得私人配對資訊；`ble`重新開放5分鐘搜尋，若已連線則重設10分鐘上傳閒置計時；`rotate`／`normal`旋轉OLED。
+序列速率115200、換行送出：`status`查看OLED地址／畫面CRC／儲存狀態，以及`ble_window_state`（discovery／upload_idle／closed）、`window_ms_left`與`uptime_ms`；`pair`取得一般私人配對資訊；`admin`取得此台管理員資訊；`ble`重新開放5分鐘搜尋，若已連線則重設10分鐘上傳閒置計時；`rotate`／`normal`旋轉OLED。
 
 測試介面亦接受一行JSON，附`rid`並使用同一套AUTH及控制指令，回覆`@REPLY,<rid>,<json>`。USB另外提供`STATUS`與`UPLOAD_DATA {transfer_id,offset,hex}`，僅供本機診斷；它的授權狀態與BLE分開。
+
+## 恢復出廠與取消舊授權
+
+接 USB 後雙擊 `FactoryReset-COM5.cmd`，輸入大寫 `RESET` 確認。它只支援 v0.3.2-s3 以上，會核對裝置狀態、清除吊飾內全部作品／清單／使用者設定、使原一般密鑰失效，並將新配對網址存到本機 `private/`。手機瀏覽器內的草稿不受影響。新網址可重新製作 QR Code；之前印出的**一般 QR** 無法再控制這台吊飾。v0.3.3-s3 的管理員 QR 仍有效。
+
+其他 COM 埠可執行 `FactoryReset.ps1 -PortName COM6`。USB 序列命令為 `factory-reset <device_id>`；缺少或填錯 ID 不會重設。BLE 不提供此指令，也不會廣播新密鑰。重設意圖先存入 NVS，斷電後會在開放 BLE 前繼續完成清除；清除失敗不宣告成功。
+
+## 管理員碼與一般配對卡
+
+給朋友使用一般 QR 卡；管理員 QR 卡由裝置管理者自行保管。兩者使用同一控制網址與 HMAC 單次挑戰，網頁只依裝置 AUTH 的成功回覆顯示「管理員已授權」，不依網址宣告權限。沒有全機共用或硬編碼的管理員密碼。
+
+接 USB 後雙擊 `AdminPair-COM5.cmd`，或執行 `Pair.ps1 -PortName COM5 -Admin`，可取得管理員網址，儲存為本機 `private/admin-pairing-private.json` 與 `admin-phone-pairing.txt`；不覆蓋一般配對檔。管理員碼不透過 BLE 查詢、不放進 GitHub、也不包含在瀏覽器作品備份。
+
+保留範圍是本專案的恢復出廠流程與一般重開機／不擦除 NVS 的韌體更新；整片 Flash／NVS 擦除或更換主板後不保留。此版管理員身分仍使用目前已實作的控制功能；恢復出廠仍由 USB 執行，未增加遠端重設或 OTA。
 
 ## 驗證界線
 

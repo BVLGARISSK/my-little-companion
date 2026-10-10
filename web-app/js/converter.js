@@ -19,6 +19,7 @@ export class MediaConverter{
       const width=this.gif.lsd.width,height=this.gif.lsd.height;
       if(width*height>4*1024*1024||!width||!height)throw new Error('GIF 畫面太大，請先縮小到 2048 × 2048 以下。');
       this.gifFrames=this.gif.frames.filter(f=>f.image);
+      if(!this.gifFrames.length)throw new Error('GIF 沒有可讀取的影格');
       if(this.gifFrames.length>2000)throw new Error('GIF 影格太多，請先裁成短片。');
       this.delays=this.gifFrames.map(f=>Math.max(20,(f.gce?.delay||10)*10));
       this.duration=this.delays.reduce((a,b)=>a+b,0)/1000;return{duration:this.duration,kind:'gif'};

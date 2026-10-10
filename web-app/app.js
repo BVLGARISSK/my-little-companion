@@ -14,7 +14,7 @@ const converter=new MediaConverter($('source-video'));
 const nameOf=item=>item.type==='emotion'?EMOTIONS.find(e=>e.id===item.id)?.name:state.assets.find(a=>a.id===item.id)?.name;
 const formatBytes=n=>Number.isFinite(n)?n>=1048576?(n/1048576).toFixed(2)+' MiB':(n/1024).toFixed(1)+' KiB':'—';
 function toast(message,error=false){$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,error?7000:3500);}
-function bind(id,fn,event='click'){$(id).addEventListener(event,async e=>{try{await fn(e);}catch(error){toast(error.message||'這次沒有完成，再試一次。',true);}});}
+function bind(id,fn,event='click'){$(id).addEventListener(event,async e=>{try{await fn(e);}catch(error){toast(error.name==='NotFoundError'?'已取消尋找小伴，可以稍後再連線。':error.name==='SecurityError'?'瀏覽器沒有允許藍牙連線，請用 Bluefy 開啟 HTTPS 網址。':error.message||'這次沒有完成，再試一次。',error.name!=='NotFoundError');}});}
 function button(text,fn,className='button tiny'){const b=document.createElement('button');b.textContent=text;b.className=className;b.addEventListener('click',async()=>{try{await fn();}catch(error){toast(error.message,true);}});return b;}
 function confirmAction(title,text,yes='確定刪除'){
   $('confirm-title').textContent=title;$('confirm-text').textContent=text;$('confirm-yes').textContent=yes;
@@ -55,7 +55,7 @@ bind('photo-file',async e=>{
   if(file.type==='image/gif'){showTab('animation');await loadAnimation(file);return;}
   if(file.size>30*1024*1024)throw new Error('請選 30MB 以下的照片。');
   const url=URL.createObjectURL(file),img=new Image();
-  try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('這张照片無法開啟，請改用 JPG 或 PNG。'));img.src=url;});photo=img;$('photo-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('photo-editor').hidden=false;updatePhoto();}finally{URL.revokeObjectURL(url);}
+  try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('這張照片無法開啟，請改用 JPG 或 PNG。'));img.src=url;});photo=img;$('photo-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('photo-editor').hidden=false;updatePhoto();}finally{URL.revokeObjectURL(url);}
 },'change');bind('save-photo',()=>{if(!photoBytes)throw new Error('先選一張照片吧。');addAsset($('photo-name').value,[photoBytes],1);$('photo-editor').hidden=true;photo=null;});
 
 function renderLibrary(){
@@ -83,7 +83,7 @@ bind('asset-export',()=>{if(assetSelected)download(encodeOLA(assetSelected.frame
 bind('asset-send',async()=>{if(!assetSelected)return;$('asset-dialog').close();await transferAsset(assetSelected);});
 bind('asset-play-device',async()=>{if(!assetSelected)return;await ble.command('PLAY_MEDIA',{id:assetSelected.id},'media');toast('小伴開始播放這個作品。');});
 bind('asset-to-pixel',async()=>{
-  if(!assetSelected||!await confirmAction('接著畫這個作品？','目前的画板草稿會被取代。已存進作品集的作品會保留。','開始畫畫'))return;
+  if(!assetSelected||!await confirmAction('接著畫這個作品？','目前的畫板草稿會被取代。已存進作品集的作品會保留。','開始畫畫'))return;
   state.pixel={width:128,height:64,frames:assetSelected.frames.map(unpackPixels),index:0,name:assetSelected.name,fps:assetSelected.fps===1?8:assetSelected.fps};undo=[];redo=[];renderPixel();persist();$('asset-dialog').close();showTab('pixel');
 });
 
@@ -123,7 +123,7 @@ bind('pixel-save',()=>{addAsset($('pixel-name').value,pixel().frames.map((_,i)=>
 // GIF and video conversion.
 bind('import-animation',()=>$('animation-file').click());bind('animation-file',async e=>{const file=e.target.files[0];e.target.value='';if(file)await loadAnimation(file);},'change');
 async function loadAnimation(file){
-  $('animation-editor').hidden=true;animation=null;$('save-animation').disabled=true;
+  $('animation-editor').hidden=true;animation=null;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';$('save-animation').disabled=true;
   const info=await converter.load(file);$('animation-editor').hidden=false;$('source-video').hidden=info.kind!=='video';$('animation-name').value=file.name.replace(/\.[^.]+$/,'').slice(0,60);$('animation-start').value=0;$('animation-start').max=info.duration.toFixed(2);$('animation-duration').value=Math.min(5,info.duration).toFixed(1);$('animation-info').textContent=`原始長度 ${info.duration.toFixed(1)} 秒 · ${info.kind==='gif'?'GIF':info.kind==='ola'?'OLA 作品':'影片'}`;
   $('convert-animation').disabled=info.kind==='ola';
   if(info.kind==='ola'){animation=converter.ola;$('save-animation').disabled=false;drawFrame($('animation-canvas'),animation.frames[0]);}
@@ -133,7 +133,7 @@ async function loadAnimation(file){
 let animationPlaying=false,animationStart=0;
 bind('convert-animation',async()=>{
   if(!converter.file)throw new Error('先選一個 GIF 或影片吧。');
-  const b=$('convert-animation');b.disabled=true;$('save-animation').disabled=true;animationPlaying=false;animation=null;$('convert-progress').hidden=false;
+  const b=$('convert-animation');b.disabled=true;$('save-animation').disabled=true;animationPlaying=false;$('animation-play').textContent='▶ 預覽動畫';animation=null;$('convert-progress').hidden=false;
   try{animation=await converter.convert({start:Number($('animation-start').value),duration:Number($('animation-duration').value),fps:Number($('animation-fps').value),threshold:Number($('animation-threshold').value),dither:$('animation-dither').checked,invert:$('animation-invert').checked},p=>$('convert-progress').value=p);
     drawFrame($('animation-canvas'),animation.frames[0]);$('animation-info').textContent=`${animation.frames.length} 格 · ${(animation.frames.length/animation.fps).toFixed(1)} 秒 · ${formatBytes(animation.frames.length*FRAME_BYTES+21)}`;$('save-animation').disabled=false;toast('小動畫轉好了，看看預覽吧。');
   }finally{b.disabled=false;$('convert-progress').hidden=true;}
@@ -164,7 +164,7 @@ bind('playlist-preview',()=>{if(!state.playlist.items.some(i=>i.enabled))throw n
 
 // BLE controls use real GATT. No simulated success, battery or storage figures.
 const browserSupported=!!navigator.bluetooth&&isSecureContext;
-$('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先画畫、做作品，再連線同步。';
+$('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先畫畫、做作品，再連線同步。';
 let pairingKey=null,pairingDevice=null;
 const params=new URLSearchParams(location.hash.slice(1));if(/^[a-f0-9]{64}$/i.test(params.get('key')||'')){pairingKey=params.get('key');pairingDevice=params.get('device');history.replaceState(null,'',location.pathname+location.search);}
 async function connect(){
@@ -212,7 +212,7 @@ bind('export-backup',()=>{
 bind('backup-file',async e=>{
   const file=e.target.files[0];e.target.value='';if(!file)return;if(file.size>30*1024*1024)throw new Error('備份檔太大，請選 30MB 以下的檔案。');
   const data=JSON.parse(await file.text());if(data.version!==1||!Array.isArray(data.assets)||data.assets.length>500)throw new Error('這不是支援的小伴備份。');
-  const incoming=data.assets.map(validateAsset);if(new Set(incoming.map(a=>a.id)).size!==incoming.length)throw new Error('備份裡有重複作品 ID');validatePlaylist(data.playlist,incoming);
+  const incoming=data.assets.map(validateAsset);if(new Set(incoming.map(a=>a.id)).size!==incoming.length)throw new Error('備份裡有重複作品 ID');if(state.assets.length+incoming.length>500)throw new Error('匯入後會超過 500 個作品，請先備份並整理作品集。');validatePlaylist(data.playlist,incoming);
   if(!await confirmAction('匯入這份小伴備份？','現有作品會保留，播放清單會換成備份裡的清單。畫板草稿會保留。','匯入備份'))return;
   const remap=new Map();for(const asset of incoming){const exists=state.assets.find(a=>a.id===asset.id);if(exists){const oldId=asset.id;asset.id=newId();remap.set(oldId,asset.id);}state.assets.push(asset);}
   state.playlist={...data.playlist,items:data.playlist.items.map(i=>({...i,id:remap.get(i.id)||i.id}))};persist(true);renderLibrary();renderPlaylist();toast('備份已匯入，原本的作品也保留了。');
@@ -237,12 +237,13 @@ function tick(time){
 }
 renderLibrary();renderPlaylist();renderPixel();drawFrame($('face-canvas'),emotionFrame(mood,0));requestAnimationFrame(tick);
 try{
-  await store.init();storeReady=true;const saved=await store.get('workspace');
+  await store.init();const saved=await store.get('workspace');
   if(saved?.version===1){
     const assets=saved.assets.map(a=>validateAsset({...a,frames:a.frames.map(f=>Array.from(f))}));validatePlaylist(saved.playlist,assets);
     const p=saved.pixel;if(![32,64,128].includes(p?.width)||p.height!==p.width/2||!Array.isArray(p.frames)||!p.frames.length||p.frames.length>100||p.frames.some(f=>f.length!==p.width*p.height||Array.from(f).some(v=>v!==0&&v!==1))||!Number.isInteger(p.index)||p.index<0||p.index>=p.frames.length||![5,8,10].includes(p.fps))throw new Error('畫板草稿格式錯誤');
     state={...saved,assets,pixel:{...p,frames:p.frames.map(f=>Uint8Array.from(f))}};renderLibrary();renderPlaylist();renderPixel();
   }
+  storeReady=true;
   $('storage-state').textContent=`草稿箱已就緒 · ${state.assets.length} 個作品 · 僅保存在目前瀏覽器`;$('pixel-save-state').textContent='草稿已儲存在這台手機。';
 }catch(error){storeReady=false;$('storage-state').textContent='草稿箱暫時無法使用，離開前請匯出備份。';$('pixel-save-state').textContent='請匯出備份再離開，目前編輯只在記憶體。';toast('草稿箱無法開啟，請先匯出備份；現有資料沒有被清除。',true);}
 if('serviceWorker'in navigator&&location.hostname!=='127.0.0.1'&&location.hostname!=='localhost')navigator.serviceWorker.register('./sw.js').catch(()=>{$('storage-state').textContent+=' · 此瀏覽器未啟用離線網頁快取';});

@@ -17,3 +17,17 @@ export function readPairing(href){
 export function pairingKeyForDevice(key,cardDevice,connectedDevice,saved){
   return key&&(!cardDevice||cardDevice===connectedDevice)?key:saved||'';
 }
+
+// Bluefy can reuse a tab and navigate only its fragment without reloading.
+// Consume both initial and later QR links; never leave the credential visible.
+export function watchPairingLinks(win,onPairing){
+  const receive=()=>{
+    const pairing=readPairing(win.location.href);
+    if(!pairing)return;
+    win.history.replaceState(null,'',win.location.pathname+win.location.search);
+    onPairing(pairing);
+  };
+  win.addEventListener('hashchange',receive);
+  receive();
+  return()=>win.removeEventListener('hashchange',receive);
+}

@@ -4,7 +4,7 @@ import {validatePlaylist} from './js/protocol.js';
 import {DraftStore} from './js/storage.js';
 import {CompanionBLE} from './js/ble.js';
 import {MediaConverter} from './js/converter.js';
-import {readPairing,pairingKeyForDevice} from './js/pairing.js';
+import {watchPairingLinks,pairingKeyForDevice} from './js/pairing.js';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let storeReady=false,saveTimer,toastTimer,saveQueue=Promise.resolve(),filter='all',activeTab='emotion',mood='happy',auto=false,photo=null,photoBytes=null,animation=null,assetSelected=null,pixelPlaying=false,pixelStart=0,assetStart=0,previewRunning=false,playlistIndex=0,playlistStarted=0,playlistFrameStarted=0;
@@ -204,16 +204,20 @@ bind('playlist-preview',()=>{if(!state.playlist.items.some(i=>i.enabled))throw n
 // BLE controls use real GATT. No simulated success, battery or storage figures.
 const browserSupported=!!navigator.bluetooth&&isSecureContext;
 $('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先畫畫、做作品，再連線同步。';
-let scannedPairing=readPairing(location.href);
-let pairingKey=scannedPairing?.key||null,pairingDevice=scannedPairing?.device||null,pairingURL=scannedPairing?.url||null;
-if(scannedPairing){
-  history.replaceState(null,'',location.pathname+location.search);
+let pairingKey=null,pairingDevice=null,pairingURL=null,pairingRevision=0,authorizationCount=0,connecting=false;
+watchPairingLinks(window,pairing=>{
+  pairingKey=pairing.key;pairingDevice=pairing.device;pairingURL=pairing.url;pairingRevision++;
   $('pairing-setup').hidden=false;
-  $('pairing-message').textContent=browserSupported?'配對資訊已讀取。開啟吊飾，按「尋找小夥伴」即可自動授權，不用輸入授權碼。':'配對資訊已讀取，不用輸入授權碼。iPhone 請按下方按鈕，將完整配對網址貼進 Bluefy 的網址列。Android 可改用 Chrome。';
+  $('pairing-message').textContent=browserSupported?'最新配對資訊已讀取。開啟吊飾，按「尋找小夥伴」即可自動授權，不用輸入授權碼。':'最新配對資訊已讀取，不用輸入授權碼。iPhone 請按下方按鈕，將完整配對網址貼進 Bluefy 的網址列。Android 可改用 Chrome。';
   $('pairing-handoff').hidden=browserSupported;
+  $('pairing-link-fallback').hidden=true;$('pairing-link').value='';
   showTab('device');
-}
-scannedPairing=null;
+  if(ble.connected){
+    if(pairingDevice&&pairingDevice!==ble.info.device_id){$('pairing-message').textContent='這張配對卡屬於另一台吊飾。請中斷連線，再選擇卡片對應的裝置。';return;}
+    $('auth-key').value=pairingKey;
+    authorize().catch(error=>toast(error.message,true));
+  }
+});
 bind('copy-pairing-link',async()=>{
   if(!pairingURL)throw new Error('請重新掃描小卡上的 QR Code。');
   try{
@@ -229,11 +233,24 @@ bind('copy-pairing-link',async()=>{
 });
 async function connect(){
   showTab('device');if(!browserSupported){toast('iPhone 請先使用 Bluefy 開啟這個網址，作品仍可以先編輯。');return;}
-  $('connect-device').disabled=true;$('connect-device').textContent='正在尋找…';
-  try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;$('auth-key').value=pairingKeyForDevice(pairingKey,pairingDevice,info.device_id,saved);$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
-  finally{$('connect-device').disabled=false;$('connect-device').textContent='尋找小夥伴';}
+  if(connecting)return;connecting=true;
+  $('connect-device').disabled=true;$('connect-top').disabled=true;$('connect-device').textContent='正在尋找…';
+  try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;if(ble.authorized||authorizationCount)return;$('auth-key').value=pairingKeyForDevice(pairingKey,pairingDevice,info.device_id,saved);$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
+  finally{connecting=false;$('connect-device').disabled=false;$('connect-top').disabled=false;$('connect-device').textContent='尋找小夥伴';}
 }
-async function authorize(){const key=$('auth-key').value.trim();await ble.authorize(key);if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;$('pairing-message').textContent=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。下次使用時，重新掃描小卡即可。';$('auth-key').value='';toast(ble.role==='admin'?'管理員已授權，可以控制小伴。':'已連線並授權，可以傳送作品。');}
+async function authorize(){
+  const key=$('auth-key').value.trim(),revision=pairingRevision;
+  authorizationCount++;$('authorize-device').disabled=true;$('authorize-device').textContent='正在授權…';
+  try{
+    await ble.authorize(key);
+    if(revision!==pairingRevision)return;
+    if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);
+    if(revision!==pairingRevision)return;
+    pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;
+    $('pairing-message').textContent=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。下次使用時，重新掃描小卡即可。';
+    $('auth-key').value='';toast(ble.role==='admin'?'管理員已授權，可以控制小伴。':'已連線並授權，可以傳送作品。');
+  }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
+}
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');

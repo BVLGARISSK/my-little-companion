@@ -1,5 +1,5 @@
 const PREFIX='mlc-shell-'+new URL(self.registration.scope).pathname+'-';
-const CACHE=PREFIX+'v1.0.8';
+const CACHE=PREFIX+'v1.0.9';
 const FILES=['./','./index.html','./style.css','./app.js','./js/media.js','./js/protocol.js','./js/storage.js','./js/faces.js','./js/ble.js','./js/converter.js','./js/pairing.js','./vendor/gifuct.js','./assets/companion.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key))))));

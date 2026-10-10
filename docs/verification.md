@@ -2,7 +2,7 @@
 
 ## 已完成
 
-- Node.js 測試15項全通過：IEEE CRC32 golden value、row-major LSB位元排列、OLA golden header與損毀拒絕、透明像素／反相、整數倍放大、備份格式、UTF-8分包重組／遺漏拒絕、DATA offset、HMAC nonce綁定、清單引用與型別檢查、mock BLE的早到ACK／授權拒絕／斷線／取消。
+- Node.js 測試17項全通過：IEEE CRC32 golden value、row-major LSB位元排列、OLA golden header與損毀拒絕、透明像素／反相、整數倍放大、備份格式、UTF-8分包重組／遺漏拒絕、DATA offset、HMAC nonce綁定、清單引用與型別檢查、mock BLE的早到ACK／授權拒絕／斷線／取消，以及慢速CONTROL分包後才啟動回覆期限、無回覆仍會逾時。
 - JavaScript語法、HTML ID、靜態資源與離線殼檔案檢查通過。
 - GitHub Actions在Linux Node22執行相同測試並部署GitHub Pages。
 - Codex in-app browser：桌面與390×844手機尺寸版面檢查。
@@ -22,5 +22,7 @@
 - Bluefy的影片解碼／Service Worker與無網路啟動；HEVC／HDR沒有保證。
 - 實機電量、充電、續航與天線／外殼。
 - OTA簽章、低電量保護與Bootloader Rollback；網頁目前未啟用OTA。
+
+另已加入ESP32-S3的SH1106韌體，USB與Windows真實BLE驗證見[韌體實機紀錄](firmware-verification.md)。上述C5仍未移植／驗收。
 
 Mock BLE只證明網頁封包與狀態機的特定測試通過，不能代替真實無線傳輸。手機尺寸截圖只驗證响应式版面，不能當成iPhone實機證據。

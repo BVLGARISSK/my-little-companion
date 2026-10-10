@@ -52,7 +52,6 @@ export class CompanionBLE extends EventTarget {
     const id=this.nextId;this.nextId=this.nextId%65535+1;
     let timer;
     const response=new Promise((resolve,reject)=>{
-      timer=setTimeout(()=>{this.pending.delete(id);reject(new Error('小伴沒有回覆，請重新連線後再試。'));},timeout);
       this.pending.set(id,{resolve,reject});
     });
     // Attach the rejection handler before writing to avoid unhandled timeout/disconnect rejection.
@@ -61,6 +60,9 @@ export class CompanionBLE extends EventTarget {
       for(const packet of fragmentMessage({op,...fields},id,this.maxWrite)){
         if(this.control.writeValueWithResponse)await this.control.writeValueWithResponse(packet);else await this.control.writeValue(packet);
       }
+      // At a 20-byte ATT value, sending a large playlist can itself take over 12 seconds.
+      // The reply deadline begins after the final control fragment has been written.
+      if(this.pending.has(id))timer=setTimeout(()=>{const pending=this.pending.get(id);this.pending.delete(id);pending?.reject(new Error('小伴沒有回覆，請重新連線後再試。'));},timeout);
       return await response;
     }finally{clearTimeout(timer);this.pending.delete(id);}
   }

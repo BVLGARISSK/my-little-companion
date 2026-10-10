@@ -1,6 +1,6 @@
 # My Little Companion BLE protocol · mlc/1
 
-這是和網頁程式一致的待整合韌體契約。尚未由實體 XIAO ESP32-C5 驗證。不要宣稱裝上原作者 OLED 範例就能連線。
+這份契約由網頁與`firmware/LittleCompanionS3`共同使用。S3的實機紀錄見[firmware-verification.md](firmware-verification.md)。XIAO ESP32-C5尚未移植／實測，原作者OLED展示範例也不能直接使用這個協定。
 
 ## GATT
 

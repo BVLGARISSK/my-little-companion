@@ -1,3 +1,4 @@
+import {validateSubtitle} from './subtitle-format.js?v=1.1.0';
 export const WIDTH = 128, HEIGHT = 64, FRAME_BYTES = 1024, HEADER_BYTES = 21;
 
 export function crc32(bytes) {
@@ -107,12 +108,17 @@ export function scalePixels(pixels,width,height){
 }
 
 export function validateAsset(asset) {
-  if (!asset || !/^[a-f0-9]{32}$/.test(asset.id) || !['image','animation'].includes(asset.kind) || typeof asset.name !== 'string' || asset.name.length>60 || !Array.isArray(asset.frames) || !asset.frames.length || asset.frames.length>100) throw new Error('作品資料格式錯誤');
+  if (!asset || !/^[a-f0-9]{32}$/.test(asset.id) || !['image','animation','subtitle'].includes(asset.kind) || typeof asset.name !== 'string' || asset.name.length>60 || !Array.isArray(asset.frames) || !asset.frames.length || asset.frames.length>100) throw new Error('作品資料格式錯誤');
   const frames=asset.frames.map(f=>{
     if(!Array.isArray(f)||f.length!==FRAME_BYTES||f.some(b=>!Number.isInteger(b)||b<0||b>255))throw new Error('影格資料格式錯誤');
     return Uint8Array.from(f);
   });
   if(asset.kind==='image' && frames.length!==1)throw new Error('圖片只能包含一格');
   if(asset.kind==='animation' && ![5,8,10].includes(asset.fps))throw new Error('動畫速度錯誤');
+  if(asset.kind==='subtitle'){
+    const subtitle=validateSubtitle(asset.subtitle,frames.length);
+    if(asset.fps!==(frames.length===1?1:5))throw new Error('字幕圖塊格式錯誤');
+    return {...asset,frames,subtitle};
+  }
   return {...asset,frames,fps:asset.kind==='image'?1:asset.fps};
 }

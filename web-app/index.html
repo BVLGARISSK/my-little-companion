@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#faf8f3"><meta name="description" content="OLED 吊飾控制與創作工具。預覽表情、編輯照片、繪製像素動畫，再同步播放清單。">
   <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=1.0.15"><title>小伴 · My Little Companion</title>
+  <link rel="stylesheet" href="./style.css?v=1.1.0"><title>小伴 · My Little Companion</title>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -29,6 +29,7 @@
     <button data-tab="library" class="tab"><svg><use href="#i-photo"/></svg><span>作品</span></button>
     <button data-tab="pixel" class="tab"><svg><use href="#i-pencil"/></svg><span>畫畫</span></button>
     <button data-tab="animation" class="tab"><svg><use href="#i-film"/></svg><span>動畫</span></button>
+    <button data-tab="subtitle" class="tab"><svg><use href="#i-list"/></svg><span>字幕</span></button>
     <button data-tab="playlist" class="tab"><svg><use href="#i-list"/></svg><span>播放</span></button>
     <button data-tab="device" class="tab"><svg><use href="#i-device"/></svg><span>裝置</span></button>
   </nav>
@@ -53,7 +54,7 @@
     </section>
 
     <section id="view-library" class="view" hidden>
-      <div class="page-heading"><div><p class="eyebrow">YOUR TINY COLLECTION</p><h1>你的作品集。</h1><p>照片、像素畫與動畫，集中整理。</p></div><button id="import-photo" class="button primary"><svg><use href="#i-plus"/></svg>加入照片</button></div>
+      <div class="page-heading"><div><p class="eyebrow">YOUR TINY COLLECTION</p><h1>你的作品集。</h1><p>照片、像素畫、動畫與字幕，集中整理。</p></div><button id="import-photo" class="button primary"><svg><use href="#i-plus"/></svg>加入照片</button></div>
       <input id="photo-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,.ola" hidden>
       <div id="photo-editor" class="card editor-card" hidden><div class="split"><div><canvas id="photo-canvas" class="oled-preview" width="512" height="256" aria-label="照片黑白預覽"></canvas><p class="small center">亮起來的像素，就是吊飾上看得到的部分。</p></div><div class="controls">
         <label>作品名稱<input id="photo-name" maxlength="60" placeholder="輸入作品名稱"></label>
@@ -66,7 +67,7 @@
         <div class="inline"><label class="check"><input id="photo-dither" type="checkbox">照片抖色</label><label class="check"><input id="photo-invert" type="checkbox">黑白反轉</label></div>
         <div class="button-row"><button id="save-photo" class="button primary">存進作品集</button><button id="close-photo" class="button soft">收起</button></div>
       </div></div></div>
-      <div class="section-title"><h2>我的作品 <span id="asset-count" class="count">0</span></h2><div class="segmented" aria-label="作品類型"><button data-filter="all" class="active">全部</button><button data-filter="image">圖片</button><button data-filter="animation">動畫</button></div></div>
+      <div class="section-title"><h2>我的作品 <span id="asset-count" class="count">0</span></h2><div class="segmented" aria-label="作品類型"><button data-filter="all" class="active">全部</button><button data-filter="image">圖片</button><button data-filter="animation">動畫</button><button data-filter="subtitle">字幕</button></div></div>
       <div id="library-grid" class="library-grid"></div><div id="library-empty" class="empty"><svg><use href="#i-photo"/></svg><h3>還沒有作品</h3><p>加入一張照片，或到畫畫頁製作像素圖案。</p><button class="button soft" data-go="pixel">去畫畫</button></div>
     </section>
 
@@ -105,6 +106,28 @@
       </div>
     </section>
 
+    <section id="view-subtitle" class="view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">WORDS ON YOUR DISPLAY</p><h1>讓小伴說點什麼。</h1><p>固定、跑馬燈、直排，或讓表情陪著文字一起出現。</p></div><button id="subtitle-import" class="button soft">匯入字幕</button></div>
+      <input id="subtitle-file" type="file" accept=".json,application/json" hidden>
+      <div class="card"><div class="split">
+        <div class="subtitle-preview"><canvas id="subtitle-canvas" class="oled-preview" width="512" height="256" aria-label="字幕 OLED 預覽"></canvas><p id="subtitle-info" class="small center"></p><p id="subtitle-error" class="subtitle-error" role="status" hidden></p><p class="small">文字在這台手機排版，轉成 OLED 的單色像素。字型與符號以預覽為準。</p></div>
+        <div class="controls subtitle-form">
+          <label>字幕名稱<input id="subtitle-name" maxlength="60" value="我的字幕"></label>
+          <label>想顯示的文字與符號 <span id="subtitle-count" class="small"></span><textarea id="subtitle-text" rows="4" maxlength="640" placeholder="輸入文字，可換行"></textarea></label>
+          <div class="subtitle-options"><label>顯示方式<select id="subtitle-motion"><option value="fixed">固定字幕</option><option value="horizontal">水平跑馬燈</option><option value="vertical">垂直捲動字幕</option></select></label><label>文字排列<select id="subtitle-writing"><option value="horizontal">橫排文字</option><option value="vertical">中文直排：上到下、右到左</option></select></label></div>
+          <label>字體大小 <output id="subtitle-font-output">16 px</output><input id="subtitle-font-size" type="range" min="8" max="32" step="1" value="16"></label>
+          <div class="subtitle-options"><label>字型<select id="subtitle-font-family"><option value="sans">黑體</option><option value="serif">明體</option><option value="mono">等寬</option></select></label><label>對齊<select id="subtitle-align"><option value="left">靠左</option><option value="center" selected>置中</option><option value="right">靠右</option></select></label></div>
+          <label class="check"><input id="subtitle-bold" type="checkbox" checked>粗體文字</label>
+          <label>捲動速度 <output id="subtitle-speed-output">30 像素／秒</output><input id="subtitle-speed" type="range" min="1" max="120" step="1" value="30"></label>
+          <label>捲動方向<select id="subtitle-direction"><option value="forward">向左／向上</option><option value="reverse">向右／向下</option></select></label>
+          <label class="check"><input id="subtitle-face" type="checkbox">表情＋字幕</label>
+          <label>搭配表情<select id="subtitle-emotion"><option value="neutral">平靜</option><option value="happy" selected>開心</option><option value="sad">難過</option><option value="surprised">驚訝</option><option value="sleepy">想睡</option><option value="angry">生氣</option></select></label>
+          <label class="check"><input id="subtitle-keep-awake" type="checkbox">播放這個字幕時保持螢幕亮</label><p class="small">未勾選時，靜止 60 秒仍會關屏，移動後接續播放。保持亮屏會增加耗電。</p>
+          <div class="button-row wrap"><button id="subtitle-save" class="button sage-button">存成字幕作品</button><button id="subtitle-send" class="button primary">傳送並播放</button></div>
+        </div>
+      </div></div>
+    </section>
+
     <section id="view-playlist" class="view" hidden>
       <div class="page-heading"><div><p class="eyebrow">YOUR PLAYLIST</p><h1>編排播放清單。</h1><p>設定表情和作品的順序與播放時間。</p></div><button id="playlist-preview" class="button sage-button">▶ 手機預覽</button></div>
       <div class="card"><div class="playlist-toolbar"><label>播放方式<select id="playlist-mode"><option value="loop">一直循環</option><option value="shuffle">隨機播放</option><option value="once">播放一次</option></select></label><div class="button-row"><select id="playlist-add-select" aria-label="選擇要加入的內容"></select><button id="playlist-add" class="button soft">＋ 加入</button></div></div><div id="playlist-items" class="playlist-items"></div><p id="playlist-empty" class="empty-mini">加入表情或作品，建立播放清單。</p><div class="divider"></div><div class="sync-row"><p class="small">拖曳排序，或用箭頭移動。草稿會自動儲存。</p><button id="sync-playlist" class="button primary"><svg><use href="#i-bluetooth"/></svg>同步給小伴</button></div></div>
@@ -140,5 +163,5 @@
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
 <dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
-<script type="module" src="./app.js?v=1.0.15"></script>
+<script type="module" src="./app.js?v=1.1.0"></script>
 </body></html>

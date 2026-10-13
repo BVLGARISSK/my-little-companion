@@ -1,6 +1,7 @@
-import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js';
-import {crc32,encodeOLA} from './media.js';
+import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.1.0';
+import {crc32,encodeOLA} from './media.js?v=1.1.0';
 import {decryptOwnerPairing} from './administration.js';
+import {subtitleRuntime} from './subtitle-format.js?v=1.1.0';
 
 export class CompanionBLE extends EventTarget {
   constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
@@ -149,10 +150,11 @@ export class CompanionBLE extends EventTarget {
   cancel(){this.cancelRequested=true;}
   async upload(asset,onProgress=()=>{}){
     this.capability('media');if(this.busy)throw new Error('另一個傳送工作還沒完成。');
+    const subtitle=asset.kind==='subtitle'?(this.capability('subtitle'),subtitleRuntime(asset.subtitle,asset.frames.length)):undefined;
     this.busy=true;this.cancelRequested=false;this.latestAck=null;
     const bytes=encodeOLA(asset.frames,asset.fps);let transferId;
     try{
-      const begin=await this.request('UPLOAD_BEGIN',{id:asset.id,kind:asset.kind,name:asset.name,length:bytes.length,crc32:crc32(bytes)});
+      const begin=await this.request('UPLOAD_BEGIN',{id:asset.id,kind:asset.kind,name:asset.name,length:bytes.length,crc32:crc32(bytes),...(subtitle?{subtitle}:{})});
       transferId=begin.transfer_id;let offset=begin.offset;
       if(!Number.isInteger(transferId)||transferId<1||transferId>65535||!Number.isInteger(offset)||offset<0||offset>bytes.length)throw new Error('吊飾上傳狀態錯誤');
       const chunk=this.maxWrite-8,windowSize=Math.max(1,Math.min(8,Number(begin.window_packets)||1));let retries=0;

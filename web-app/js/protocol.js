@@ -53,7 +53,7 @@ export function validatePlaylist(playlist,assets){
   if(!playlist||playlist.version!==1||!['loop','shuffle','once'].includes(playlist.mode)||!Array.isArray(playlist.items)||playlist.items.length>64)throw new Error('播放清單格式錯誤');
   const ids=new Set(assets.map(a=>a.id));
   for(const item of playlist.items){
-    if(!['emotion','image','animation'].includes(item.type)||!Number.isInteger(item.duration_ms)||item.duration_ms<1000||item.duration_ms>600000||typeof item.enabled!=='boolean')throw new Error('清單項目錯誤');
+    if(!['emotion','image','animation','subtitle'].includes(item.type)||!Number.isInteger(item.duration_ms)||item.duration_ms<1000||item.duration_ms>600000||typeof item.enabled!=='boolean')throw new Error('清單項目錯誤');
     if(item.type==='emotion'?!['neutral','happy','sad','surprised','sleepy','angry'].includes(item.id):!ids.has(item.id)||assets.find(a=>a.id===item.id)?.kind!==item.type)throw new Error('清單引用的作品不存在或類型不符');
   }
   return playlist;

@@ -2,9 +2,10 @@ import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,valid
 import {EMOTIONS,emotionFrame} from './js/faces.js';
 import {validatePlaylist} from './js/protocol.js';
 import {DraftStore} from './js/storage.js';
-import {CompanionBLE} from './js/ble.js';
+import {CompanionBLE} from './js/ble.js?v=1.0.14';
+import {batteryLabel} from './js/battery.js?v=1.0.14';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.0.13';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.0.14';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
@@ -293,10 +294,16 @@ async function authorize(){
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
-  $('info-battery').textContent=Number.isFinite(info?.battery_mv)?`${(info.battery_mv/1000).toFixed(2)} V${Number.isFinite(info.battery_percent)?' · 約 '+info.battery_percent+'%':''}`:'—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
+  $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
   $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
   if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
+async function refreshBatteryInfo(){
+  if(document.hidden||!ble.authorized)return;
+  try{await ble.refreshInfo();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
+}
+setInterval(refreshBatteryInfo,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshBatteryInfo();});
 bind('read-owner-pairing',async()=>{await readOwnerQR();toast('一般配對卡已讀取，可以交給朋友。');});
 bind('download-owner-qr',async()=>{
   if(!ownerURL)throw new Error('請先讀取一般配對卡。');

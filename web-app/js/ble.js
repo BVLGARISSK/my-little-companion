@@ -6,6 +6,21 @@ export class CompanionBLE extends EventTarget {
   constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
   get connected(){return !!this.device?.gatt?.connected;}
   emit(name,detail){this.dispatchEvent(new CustomEvent(name,{detail}));}
+  refreshInfo(){
+    if(!this.connected||!this.infoChar||!this.info||this.busy||this.authorization||this.pending.size||this.infoRefresh)return Promise.resolve(false);
+    const epoch=this.connectionEpoch,device=this.device,info=this.info,characteristic=this.infoChar;
+    const refresh={promise:null};this.infoRefresh=refresh;
+    refresh.promise=Promise.resolve().then(async()=>{
+      const value=await characteristic.readValue();
+      if(!this.connected||this.connectionEpoch!==epoch||this.device!==device||this.info!==info)return false;
+      const next=JSON.parse(new TextDecoder().decode(value));
+      if(next.protocol!==PROTOCOL||next.device_id!==info.device_id)throw new Error('裝置資訊不符，請重新連線。');
+      // Keep the object identity used by authorization and reset guards.
+      Object.assign(info,next);
+      this.emit('state',{connected:true,authorized:this.authorized,role:this.role,info});return true;
+    }).finally(()=>{if(this.infoRefresh===refresh)this.infoRefresh=null;});
+    return refresh.promise;
+  }
   async connect(){
     if(!globalThis.navigator?.bluetooth)throw new Error('請在 iPhone 的 Bluefy 開啟這個網址，才可以使用藍牙。');
     if(!globalThis.isSecureContext)throw new Error('藍牙需要 HTTPS 網址。');
@@ -24,7 +39,7 @@ export class CompanionBLE extends EventTarget {
     }catch(error){this.disconnect();throw error;}
   }
   onDisconnect(){
-    this.connectionEpoch++;this.authorization=null;this.authorized=false;this.role=null;this.adminKey=null;this.info=null;this.assembler.clear();this.latestAck=null;
+    this.connectionEpoch++;this.infoRefresh=null;this.authorization=null;this.authorized=false;this.role=null;this.adminKey=null;this.info=null;this.assembler.clear();this.latestAck=null;
     for(const p of this.pending.values())p.reject(new Error('連線中斷；已完成的作品會留在吊飾。'));this.pending.clear();
     this.ackWaiter?.reject(new Error('連線中斷，重新連線後可再同步。'));this.ackWaiter=null;
     this.emit('state',{connected:false,authorized:false,info:null});
@@ -54,6 +69,12 @@ export class CompanionBLE extends EventTarget {
     }catch(error){this.emit('error',error);}
   }
   async request(op,fields={},timeout=12000){
+    // Let an already-started INFO read finish before sending control fragments.
+    if(this.infoRefresh){
+      const epoch=this.connectionEpoch,device=this.device;
+      await this.infoRefresh.promise.catch(()=>{});
+      if(this.connectionEpoch!==epoch||this.device!==device)throw new Error('連線已改變，請重新操作。');
+    }
     if(!this.connected)throw new Error('先連接小夥伴，再把作品送過去。');
     const id=this.nextId;this.nextId=this.nextId%65535+1;
     let timer;

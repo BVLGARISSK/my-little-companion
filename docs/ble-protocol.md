@@ -1,6 +1,6 @@
 # My Little Companion BLE protocol · mlc/1
 
-這份契約由網頁與`firmware/LittleCompanionS3`共同使用。S3的實機紀錄見[firmware-verification.md](firmware-verification.md)。XIAO ESP32-C5尚未移植／實測，原作者OLED展示範例也不能直接使用這個協定。
+這份契約供手機網頁與 S3／C5 韌體共同使用。本公開儲存庫的 S3 程式位於 `firmware/LittleCompanionS3`，實機紀錄見 [firmware-verification.md](firmware-verification.md)。C5 程式與驗證紀錄另保留在本機交付套件。
 
 ## GATT
 
@@ -19,6 +19,12 @@ INFO 為 UTF-8 JSON，建議 ≤512 bytes：
 ```
 
 `battery_mv`、`battery_percent`、`storage_total`、`storage_free` 可缺省，網頁會顯示未知。`battery_percent` 必須有實测校準，不能虛構。`max_write_bytes` 是實際 ATT characteristic value 容量，包含以下 8-byte header；須 ≤ negotiated MTU −3 且 ≤244。若還沒取得可靠值，公布 20。INFO 読取之後若 MTU 尚未協商完成，20 仍合法。能力沒有實作就不要列入。
+
+C5 0.4.2 新增 `battery_mv`、`battery_type: "lipo_1s"` 與能力 `battery_voltage`。電壓使用 XIAO 板上 GPIO6 ADC／GPIO26 量測開關，16 次取樣平均後乘 2 還原分壓，依據 [Seeed 官方文件](https://wiki.seeedstudio.com/xiao_esp32c5_getting_started/#check-the-battery-voltage)。韌體每 30 秒更新快照；BLE INFO 只讀該快照，不重新取樣、不喚醒 OLED、不重設 BLE 上傳閒置計時。INFO 仍使用 long read 且不超過 512 bytes。
+
+網頁 1.0.14 只在 `battery_type` 明確為 `lipo_1s` 時，依通用 4.2 V 滿電鋰聚合物參考曲線估算百分比，取最接近的 5%，標示「約」。此估計只在網頁產生，不當作已校準的 `battery_percent` 傳回協定。參考節點（mV→%）為 3300→0、3500→5、3600→10、3700→20、3750→35、3800→50、3850→60、3900→70、3950→80、4000→85、4100→95、4200→100；中間線性內插。這是工程選用的粗略曲線，沒有這顆實際電池的放電校準，負載、溫度、充電與老化皆會影響結果，不代表精確容量或剩餘時間。
+
+網頁在前景且已授權連線時每 30 秒讀取 INFO，切回前景也讀取；同步、授權、控制請求或另一筆讀取中會略過本次更新。INFO 回覆不取代授權流程所保留的裝置物件，斷線後的舊回覆不會套用到新連線。
 
 ## CONTROL／EVENT 的共同 JSON 分包
 

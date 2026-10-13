@@ -26,6 +26,10 @@ C5 0.4.2 新增 `battery_mv`、`battery_type: "lipo_1s"` 與能力 `battery_volt
 
 網頁在前景且已授權連線時每 30 秒讀取 INFO，切回前景也讀取；同步、授權、控制請求或另一筆讀取中會略過本次更新。INFO 回覆不取代授權流程所保留的裝置物件，斷線後的舊回覆不會套用到新連線。
 
+C5 0.4.3／網頁 1.0.15 新增 `usb_host_connected`（boolean）、`charging_state`（目前固定 `"unknown"`）與能力 `usb_host_status`。USB 狀態使用目前 SDK 的 `usb_serial_jtag_is_connected()`，依主機 SOF 判斷 USB 資料連線，串口程式沒有開啟時也可以為 true；充電器／行動電源沒有 USB 主機 SOF 時為 false。主迴圈每 250 ms 更新，變化持續至少 500 ms 後才更新原子快照。這項資訊不代表 VBUS 供電、正在收發串口指令、電池正在充電或已充滿。INFO 讀取仍不改 OLED 與 BLE 閒置計時，網頁沿用 30 秒更新與前景切換更新。
+
+網頁顯示「USB 資料連線中」或「未連接 USB 主機」；舊韌體缺少 boolean 時顯示「需要更新韌體」。充電欄位只依明確的充電晶片狀態：`charging`→「正在充電」、`not_charging`→「未在充電」，未知／缺少／無效資料→「目前無法讀取」。目前標準板接線沒有把充電晶片 NCHG 接到主控 GPIO，不能從電池電壓或 USB 連線推算正在充電，依據 [Seeed 官方電路圖](https://files.seeedstudio.com/wiki/XIAO_ESP32C5/res/Seeed_Studio_XIAO_ESP32C5.pdf)。本次沒有接線變更，沒有宣告實作充電辨識。
+
 ## CONTROL／EVENT 的共同 JSON 分包
 
 所有整數 little-endian。每包必須 ≥9 bytes。

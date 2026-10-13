@@ -18,6 +18,20 @@ export function pairingKeyForDevice(key,cardDevice,connectedDevice,saved){
   return key&&(!cardDevice||cardDevice===connectedDevice)?key:saved||'';
 }
 
+export function pairingAuthorizationForDevice(key,cardDevice,connectedDevice,saved){
+  const selected=pairingKeyForDevice(key,cardDevice,connectedDevice,saved);
+  const matchingCard=!!key&&(!cardDevice||cardDevice===connectedDevice);
+  return{key:selected,remember:!!selected&&(matchingCard||!!saved)};
+}
+
+// Only a key accepted by the connected companion is written to its own entry.
+export async function rememberVerifiedPairing(store,connection,key,remember=true){
+  const info=connection.info,epoch=connection.connectionEpoch;
+  if(!connection.connected||!connection.authorized||!info?.device_id||!/^[a-f0-9]{64}$/i.test(key||''))throw new Error('請先完成這台吊飾的授權。');
+  await store.put('key:'+info.device_id,remember?key:null);
+  return connection.connected&&connection.authorized&&connection.info===info&&connection.connectionEpoch===epoch&&remember;
+}
+
 // Bluefy can reuse a tab and navigate only its fragment without reloading.
 // Consume both initial and later QR links; never leave the credential visible.
 export function watchPairingLinks(win,onPairing){

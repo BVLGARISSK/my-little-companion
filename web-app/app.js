@@ -4,10 +4,11 @@ import {validatePlaylist} from './js/protocol.js';
 import {DraftStore} from './js/storage.js';
 import {CompanionBLE} from './js/ble.js';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingKeyForDevice} from './js/pairing.js';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.0.13';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
+let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
 let storeReady=false,saveTimer,toastTimer,saveQueue=Promise.resolve(),filter='all',activeTab='emotion',mood='happy',auto=false,photo=null,photoBytes=null,animation=null,assetSelected=null,pixelPlaying=false,pixelStart=0,assetStart=0,previewRunning=false,playlistIndex=0,playlistStarted=0,playlistFrameStarted=0;
 const blank=()=>new Uint8Array(32*16),newId=()=>crypto.randomUUID().replaceAll('-','');
 let state={version:1,assets:[],playlist:{version:1,name:'My little day',mode:'loop',items:[]},pixel:{width:32,height:16,frames:[blank()],index:0,name:'我的小塗鴉',fps:8}};
@@ -232,8 +233,9 @@ async function checkPendingReset(){
 }
 watchPairingLinks(window,pairing=>{
   pairingKey=pairing.key;pairingDevice=pairing.device;pairingURL=pairing.url;pairingRevision++;
+  $('auth-key').value=pairing.key;$('remember-key').checked=true;
   $('pairing-setup').hidden=false;
-  $('pairing-message').textContent=browserSupported?'最新配對資訊已讀取。開啟吊飾，按「尋找小夥伴」即可自動授權，不用輸入授權碼。':'最新配對資訊已讀取，不用輸入授權碼。iPhone 請按下方按鈕，將完整配對網址貼進 Bluefy 的網址列。Android 可改用 Chrome。';
+  $('pairing-message').textContent=browserSupported?'授權碼已自動填入。開啟吊飾，按「尋找小夥伴」即可自動授權；成功後會記住在這個瀏覽器。':'授權碼已自動填入。iPhone 請將下方完整配對網址貼進 Bluefy；成功授權後會記住在 Bluefy 裡。Android 可用 Chrome。';
   $('pairing-handoff').hidden=browserSupported;
   $('pairing-link-fallback').hidden=true;$('pairing-link').value='';
   showTab('device');
@@ -260,20 +262,31 @@ async function connect(){
   showTab('device');if(!browserSupported){toast('iPhone 請先使用 Bluefy 開啟這個網址，作品仍可以先編輯。');return;}
   if(connecting)return;connecting=true;
   $('connect-device').disabled=true;$('connect-top').disabled=true;$('connect-device').textContent='正在尋找…';
-  try{const info=await ble.connect();const saved=storeReady?await store.get('key:'+info.device_id):null;if(ble.authorized||authorizationCount)return;$('auth-key').value=pairingKeyForDevice(pairingKey,pairingDevice,info.device_id,saved);$('remember-key').checked=!!saved;if($('auth-key').value)await authorize();else toast('找到了！請輸入小卡上的授權碼。');}
+  try{
+    const info=await ble.connect(),epoch=ble.connectionEpoch;await waitForStore;
+    let saved=null;if(storeReady)try{saved=await store.get('key:'+info.device_id);}catch{/* A scanned card remains usable if local storage is unavailable. */}
+    if(!ble.connected||ble.info!==info||ble.connectionEpoch!==epoch||ble.authorized||authorizationCount)return;
+    const credential=pairingAuthorizationForDevice(pairingKey,pairingDevice,info.device_id,saved);
+    $('auth-key').value=credential.key;$('remember-key').checked=credential.remember;
+    if(credential.key)await authorize();else toast('找到了！請輸入小卡上的授權碼。');
+  }
   finally{connecting=false;$('connect-device').disabled=false;$('connect-top').disabled=false;$('connect-device').textContent='尋找小夥伴';}
 }
 async function authorize(){
-  const key=$('auth-key').value.trim(),revision=pairingRevision;
+  const key=$('auth-key').value.trim(),revision=pairingRevision,info=ble.info,epoch=ble.connectionEpoch;
   authorizationCount++;$('authorize-device').disabled=true;$('authorize-device').textContent='正在授權…';
   try{
     await ble.authorize(key);
-    if(revision!==pairingRevision)return;
-    if($('remember-key').checked&&storeReady)await store.put('key:'+ble.info.device_id,key);else if(storeReady)await store.put('key:'+ble.info.device_id,null);
-    if(revision!==pairingRevision)return;
+    await waitForStore;
+    if(revision!==pairingRevision||!ble.connected||ble.info!==info||ble.connectionEpoch!==epoch)return;
+    const remember=$('remember-key').checked;let remembered=false,memoryFailed=false;
+    if(storeReady)try{remembered=await rememberVerifiedPairing(store,ble,key,remember);}catch{memoryFailed=true;}
+    if(revision!==pairingRevision||!ble.connected||ble.info!==info||ble.connectionEpoch!==epoch)return;
     pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;
-    $('pairing-message').textContent=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。下次使用時，重新掃描小卡即可。';
-    $('auth-key').value='';toast(ble.role==='admin'?'管理員已授權，可以控制小伴。':'已連線並授權，可以傳送作品。');
+    const roleMessage=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。';
+    const memoryMessage=remembered?'已記住這台吊飾，下次在同一個瀏覽器按「尋找小夥伴」即可，不用再掃碼。':memoryFailed||remember&&!storeReady?'瀏覽器暫時無法更新授權碼記憶，下次請重新掃描小卡。':'下次使用時，請重新掃描小卡。';
+    $('pairing-message').textContent=roleMessage+memoryMessage;
+    $('auth-key').value='';toast(remembered?'已授權，並記住這台吊飾。':memoryFailed||remember&&!storeReady?'已授權，暫時無法記住授權碼。':roleMessage);
     await checkPendingReset();
   }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
 }
@@ -373,4 +386,5 @@ try{
   storeReady=true;
   $('storage-state').textContent=`草稿箱已就緒 · ${state.assets.length} 個作品 · 僅保存在目前瀏覽器`;$('pixel-save-state').textContent='草稿已儲存在這台手機。';
 }catch(error){storeReady=false;$('storage-state').textContent='草稿箱暫時無法使用，離開前請匯出備份。';$('pixel-save-state').textContent='請匯出備份再離開，目前編輯只在記憶體。';toast('草稿箱無法開啟，請先匯出備份；現有資料沒有被清除。',true);}
+finishStoreReady(storeReady);
 if('serviceWorker'in navigator&&location.hostname!=='127.0.0.1'&&location.hostname!=='localhost')navigator.serviceWorker.register('./sw.js').catch(()=>{$('storage-state').textContent+=' · 此瀏覽器未啟用離線網頁快取';});

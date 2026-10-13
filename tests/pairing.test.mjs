@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readPairing,pairingKeyForDevice,watchPairingLinks} from '../web-app/js/pairing.js';
+import {readPairing,pairingKeyForDevice,pairingAuthorizationForDevice,rememberVerifiedPairing,watchPairingLinks} from '../web-app/js/pairing.js';
 
 const key='0123456789abcdef'.repeat(4),base='https://example.test/companion/';
 test('QR credentials survive a sanitized address for browser handoff',()=>{
@@ -54,4 +54,41 @@ test('ordinary anchors do not discard a pending QR and listeners can be removed'
   const stop=watchPairingLinks(win,card=>cards.push(card));
   win.navigate(base+'#device');assert.equal(cards.length,1);
   stop();win.navigate(base+'#key='+'b'.repeat(64));assert.equal(cards.length,1);
+});
+
+test('a first C5 scan automatically enables remembering without a previously saved key',()=>{
+  assert.deepEqual(pairingAuthorizationForDevice(key,'mlc-c5-test','mlc-c5-test',null),{key,remember:true});
+  assert.deepEqual(pairingAuthorizationForDevice(null,null,'mlc-c5-test',key),{key,remember:true});
+});
+test('a new card replaces an old remembered key and another device card stays isolated',()=>{
+  const old='f'.repeat(64);
+  assert.deepEqual(pairingAuthorizationForDevice(key,'mlc-c5-test','mlc-c5-test',old),{key,remember:true});
+  assert.deepEqual(pairingAuthorizationForDevice(key,'mlc-c5-other','mlc-c5-test',old),{key:old,remember:true});
+  assert.deepEqual(pairingAuthorizationForDevice(key,'mlc-c5-other','mlc-c5-test',null),{key:'',remember:false});
+});
+function memory(){const values=new Map();return{values,async put(k,v){values.set(k,v);}};}
+function connection(device='mlc-c5-test'){return{connected:true,authorized:true,info:{device_id:device},connectionEpoch:3};}
+test('a verified QR is remembered under the actual device and can be reused on a plain control URL',async()=>{
+  const store=memory(),session=connection();
+  assert.equal(await rememberVerifiedPairing(store,session,key),true);
+  assert.equal(readPairing(base),null);
+  assert.equal(pairingAuthorizationForDevice(null,null,session.info.device_id,store.values.get('key:'+session.info.device_id)).key,key);
+});
+test('failed or missing authorization cannot replace an existing remembered key',async()=>{
+  const store=memory(),session=connection(),old='f'.repeat(64);store.values.set('key:mlc-c5-test',old);
+  session.authorized=false;await assert.rejects(rememberVerifiedPairing(store,session,key));
+  session.authorized=true;session.connected=false;await assert.rejects(rememberVerifiedPairing(store,session,key));
+  session.connected=true;await assert.rejects(rememberVerifiedPairing(store,session,'bad'));
+  assert.equal(store.values.get('key:mlc-c5-test'),old);
+});
+test('remembering multiple companions keeps their credentials separate and opt-out clears only the current one',async()=>{
+  const store=memory(),other='b'.repeat(64);
+  await rememberVerifiedPairing(store,connection(),key);
+  await rememberVerifiedPairing(store,connection('mlc-c5-other'),other);
+  assert.equal(await rememberVerifiedPairing(store,connection(),key,false),false);
+  assert.equal(store.values.get('key:mlc-c5-test'),null);
+  assert.equal(store.values.get('key:mlc-c5-other'),other);
+});
+test('storage failure is propagated without claiming the code was remembered',async()=>{
+  await assert.rejects(rememberVerifiedPairing({async put(){throw new Error('quota');}},connection(),key),/quota/);
 });

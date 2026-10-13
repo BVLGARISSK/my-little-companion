@@ -1,6 +1,6 @@
 const PREFIX='mlc-shell-'+new URL(self.registration.scope).pathname+'-';
-const CACHE=PREFIX+'v1.0.12';
-const FILES=['./','./index.html','./style.css?v=1.0.12','./app.js','./js/media.js','./js/protocol.js','./js/storage.js','./js/faces.js','./js/ble.js','./js/converter.js','./js/pairing.js','./js/administration.js','./vendor/gifuct.js','./vendor/qrcode.js','./assets/companion.svg','./manifest.webmanifest'];
+const CACHE=PREFIX+'v1.0.13';
+const FILES=['./','./index.html','./style.css?v=1.0.13','./app.js?v=1.0.13','./js/media.js','./js/protocol.js','./js/storage.js','./js/faces.js','./js/ble.js','./js/converter.js','./js/pairing.js?v=1.0.13','./js/administration.js','./vendor/gifuct.js','./vendor/qrcode.js','./assets/companion.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key))))));
 self.addEventListener('fetch',event=>{

@@ -1,6 +1,6 @@
 const PREFIX='mlc-shell-'+new URL(self.registration.scope).pathname+'-';
-const CACHE=PREFIX+'v1.2.0';
-const FILES=['./','./index.html','./style.css?v=1.2.0','./app.js?v=1.2.0','./js/media.js','./js/media.js?v=1.2.0','./js/protocol.js','./js/protocol.js?v=1.2.0','./js/storage.js','./js/faces.js','./js/ble.js?v=1.2.0','./js/battery.js?v=1.2.0','./js/power.js?v=1.2.0','./js/subtitle.js?v=1.2.0','./js/subtitle-format.js?v=1.2.0','./js/converter.js','./js/pairing.js?v=1.2.0','./js/administration.js','./vendor/gifuct.js','./vendor/qrcode.js','./assets/companion.svg','./manifest.webmanifest'];
+const CACHE=PREFIX+'v1.2.1';
+const FILES=['./','./index.html','./style.css?v=1.2.1','./app.js?v=1.2.1','./js/media.js','./js/media.js?v=1.2.1','./js/protocol.js','./js/protocol.js?v=1.2.1','./js/storage.js','./js/faces.js','./js/ble.js?v=1.2.1','./js/battery.js?v=1.2.1','./js/power.js?v=1.2.1','./js/subtitle.js?v=1.2.1','./js/subtitle-format.js?v=1.2.1','./js/converter.js','./js/pairing.js?v=1.2.1','./js/administration.js','./vendor/gifuct.js','./vendor/qrcode.js','./assets/companion.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key))))));
 self.addEventListener('fetch',event=>{

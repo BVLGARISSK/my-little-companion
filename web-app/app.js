@@ -1,17 +1,17 @@
-import {setupExperience} from './js/experience-ui.js?v=1.3.0';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.0';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.0';
+import {setupExperience} from './js/experience-ui.js?v=1.3.1';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.1';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.1';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.3.0';
+import {validatePlaylist} from './js/protocol.js?v=1.3.1';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.0';
-import {CompanionBLE} from './js/ble.js?v=1.3.0';
-import {batteryLabel} from './js/battery.js?v=1.3.0';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.0';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.1';
+import {CompanionBLE} from './js/ble.js?v=1.3.1';
+import {batteryLabel} from './js/battery.js?v=1.3.1';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.1';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.0';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.1';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.0';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.1';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -52,33 +52,44 @@ function addAsset(name,frames,fps){
 // Expressions are local previews until the user explicitly sends a command.
 function subtitleDraft(){return {text:$('subtitle-text').value,font_px:Number($('subtitle-font-size').value),font_family:$('subtitle-font-family').value,
   bold:$('subtitle-bold').checked,writing:$('subtitle-writing').value,align:$('subtitle-align').value,face:$('subtitle-face').checked,keep_awake:$('subtitle-keep-awake').checked,
-  motion:$('subtitle-motion').value,direction:$('subtitle-direction').value,speed:Number($('subtitle-speed').value),emotion:$('subtitle-emotion').value};}
+  motion:$('subtitle-motion').value,direction:$('subtitle-direction').value,speed:Number($('subtitle-speed').value),emotion:$('subtitle-emotion').value,
+  offset_x:Number($('subtitle-x').value),offset_y:Number($('subtitle-y').value)};}
 function applySubtitleDraft(value={}){
   const c={...DEFAULT_SUBTITLE,...value};if(typeof value.name==='string')$('subtitle-name').value=value.name;
   const ids={text:'text',font_px:'font-size',font_family:'font-family',writing:'writing',align:'align',motion:'motion',direction:'direction',speed:'speed',emotion:'emotion'};
   for(const [key,id] of Object.entries(ids))$('subtitle-'+id).value=c[key];
+  for(const [axis,limit] of [['x',127],['y',63]]){const input=$('subtitle-'+axis);input.min=-limit;input.max=limit;input.value=c['offset_'+axis]??0;}
   $('subtitle-bold').checked=c.bold;$('subtitle-face').checked=c.face;$('subtitle-keep-awake').checked=c.keep_awake??false;
 }
 function updateSubtitle(save=false){
-  const draft=subtitleDraft();state.subtitleDraft={...draft,name:$('subtitle-name').value};if(save)persist();
+  const draft=subtitleDraft();
   $('subtitle-font-output').textContent=draft.font_px+' px';$('subtitle-speed-output').textContent=draft.speed+' 像素／秒';
   $('subtitle-count').textContent=Array.from(draft.text).length+' / 160';$('subtitle-speed').disabled=draft.motion==='fixed';
   $('subtitle-direction').disabled=draft.motion==='fixed';$('subtitle-emotion').disabled=!draft.face;
   try{subtitlePreview=rasterizeSubtitle(draft);subtitleStarted=performance.now();$('subtitle-error').hidden=true;
+    for(const axis of ['x','y']){
+      const input=$('subtitle-'+axis),bounds=subtitlePreview.positionBounds[axis],offset=subtitlePreview.subtitle['offset_'+axis];
+      input.min=bounds.min;input.max=bounds.max;input.value=offset;input.disabled=bounds.min===bounds.max;
+      draft['offset_'+axis]=offset;$('subtitle-'+axis+'-output').textContent=(offset>0?'+':'')+offset+' px';
+    }
+    $('subtitle-position-hint').textContent=(draft.motion==='horizontal'?'水平跑馬燈可上下微調。':draft.motion==='vertical'?'垂直跑馬燈可左右微調。':'固定字幕可上下、左右微調。')+(draft.face?'表情＋字幕的文字保留在下方字幕區。':'')+'範圍依文字大小調整，避免切掉文字。';
     $('subtitle-info').textContent=`128 × 64 · ${formatBytes(subtitlePreview.frames.length*FRAME_BYTES+21)} · 可離線播放`;
     drawFrame($('subtitle-canvas'),subtitleThumbnail(subtitlePreview));
-  }catch(error){subtitlePreview=null;$('subtitle-error').hidden=false;$('subtitle-error').textContent=error.message;$('subtitle-info').textContent='請調整字幕設定';drawFrame($('subtitle-canvas'),new Uint8Array(FRAME_BYTES));}
+  }catch(error){subtitlePreview=null;$('subtitle-x').disabled=true;$('subtitle-y').disabled=true;$('subtitle-error').hidden=false;$('subtitle-error').textContent=error.message;$('subtitle-info').textContent='請調整字幕設定';drawFrame($('subtitle-canvas'),new Uint8Array(FRAME_BYTES));}
+  state.subtitleDraft={...draft,name:$('subtitle-name').value};if(save)persist();
   $('subtitle-save').disabled=!subtitlePreview;$('subtitle-send').disabled=!subtitlePreview;
 }
 function saveSubtitle(){
   if(!subtitlePreview)throw new Error('請先修正字幕設定。');if(state.assets.length>=500)throw new Error('作品集已滿，請先備份並整理。');
-  const asset={...subtitlePreview,id:newId(),name:$('subtitle-name').value.trim().slice(0,60)||'我的字幕',created:Date.now(),
+  const {positionBounds,...preview}=subtitlePreview;
+  const asset={...preview,id:newId(),name:$('subtitle-name').value.trim().slice(0,60)||'我的字幕',created:Date.now(),
     frames:subtitlePreview.frames.map(f=>f.slice()),subtitle:{...subtitlePreview.subtitle}};
   state.assets.push(asset);persist(true);renderLibrary();renderPlaylist();return asset;
 }
 applySubtitleDraft();updateSubtitle();
-for(const id of ['text','font-size','font-family','bold','writing','align','face','keep-awake','motion','direction','speed','emotion'])
+for(const id of ['text','font-size','font-family','bold','writing','align','x','y','face','keep-awake','motion','direction','speed','emotion'])
   bind('subtitle-'+id,()=>{clearTimeout(subtitleTimer);subtitleTimer=setTimeout(()=>updateSubtitle(true),120);},'input');
+bind('subtitle-position-reset',()=>{clearTimeout(subtitleTimer);$('subtitle-x').value=0;$('subtitle-y').value=0;updateSubtitle(true);});
 bind('subtitle-save',()=>{clearTimeout(subtitleTimer);updateSubtitle();saveSubtitle();toast('字幕已存進作品集，可傳送或加入播放清單。');});
 bind('subtitle-send',async()=>{if(syncing)throw new Error('正在同步，請稍後再傳送。');ble.capability('subtitle');clearTimeout(subtitleTimer);updateSubtitle();const asset=saveSubtitle();await transferAsset(asset);await ble.command('PLAY_MEDIA',{id:asset.id},'subtitle');toast('字幕已存進吊飾並開始播放。');});
 bind('subtitle-import',()=>$('subtitle-file').click());

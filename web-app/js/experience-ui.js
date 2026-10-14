@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from './experience-format.js?v=1.3.0';
+import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from './experience-format.js?v=1.3.1';
 export function setupExperience({ble,toast,getAssets,getDraft,onDraft,transferAsset,isBusy}){
  const $=id=>document.getElementById(id);
  let current=structuredClone(DEFAULT_SETTINGS),runtime=null,remote=[],dirty=false,busy=false,reading=null,device=null;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {subtitleRuntime,validateSubtitle,subtitlePixel,scrollOrigin} from '../web-app/js/subtitle-format.js';
-import {subtitleFrame} from '../web-app/js/subtitle.js';
+import {subtitleFrame,rasterizeSubtitle} from '../web-app/js/subtitle.js';
 import {validateAsset,encodeOLA,decodeOLA} from '../web-app/js/media.js';
 import {validatePlaylist} from '../web-app/js/protocol.js';
 import {CompanionBLE} from '../web-app/js/ble.js';
@@ -79,4 +79,45 @@ test('subtitle upload sends only runtime settings and uses verified tiled OLA da
 test('older firmware refuses subtitle uploads before starting a transfer',async()=>{
   const ble=new CompanionBLE();ble.device={gatt:{connected:true}};ble.authorized=true;ble.info={capabilities:['media']};
   await assert.rejects(ble.upload(asset()),/還沒開放/);assert.equal(ble.busy,false);
+});
+
+function pixelCanvas(){
+  const canvas={width:0,height:0};
+  const context={measureText:text=>({width:text.length*8}),fillText(){},getImageData(){
+    const data=new Uint8ClampedArray(canvas.width*canvas.height*4);
+    for(const [x,y] of [[5,10],[6,11]])data.fill(255,(y*canvas.width+x)*4,(y*canvas.width+x)*4+4);
+    return {data};
+  }};
+  canvas.getContext=()=>context;return canvas;
+}
+test('position is baked into pixels, clamped without loss, and preserved by backup',()=>{
+  const original=rasterizeSubtitle({text:'Hi'},pixelCanvas);
+  const shifted=rasterizeSubtitle({text:'Hi',offset_x:127,offset_y:63},pixelCanvas);
+  assert.equal(shifted.subtitle.offset_x,121);assert.equal(shifted.subtitle.offset_y,52);
+  assert.equal(subtitlePixel(shifted.frames,128,64,126,62),1);
+  assert.equal(subtitlePixel(shifted.frames,128,64,127,63),1);
+  const restored=validateAsset({...asset(shifted.subtitle,shifted.frames),frames:shifted.frames.map(f=>Array.from(f))});
+  assert.equal(restored.subtitle.offset_x,121);assert.equal(restored.subtitle.offset_y,52);
+  assert.deepEqual(restored.frames,shifted.frames);
+  assert.equal(validateSubtitle(config(),1).offset_x,0);
+  assert.deepEqual(rasterizeSubtitle({text:'Hi',offset_x:0,offset_y:0},pixelCanvas).frames,original.frames);
+  for(const change of [{offset_x:128},{offset_y:-64},{offset_x:.5},{offset_y:'1'}])assert.throws(()=>validateSubtitle(config(change),1));
+});
+test('marquee offsets move only perpendicular to travel without changing its span',()=>{
+  const horizontal=rasterizeSubtitle({text:'Hi',motion:'horizontal',offset_x:10,offset_y:20},pixelCanvas);
+  assert.equal(horizontal.subtitle.offset_x,0);assert.equal(horizontal.subtitle.offset_y,20);
+  assert.equal(horizontal.subtitle.width,20);assert.equal(horizontal.positionBounds.x.max,0);
+  assert.equal(subtitlePixel(horizontal.frames,20,64,5,30),1);
+  const vertical=rasterizeSubtitle({text:'Hi',motion:'vertical',offset_x:20,offset_y:10},pixelCanvas);
+  assert.equal(vertical.subtitle.offset_x,20);assert.equal(vertical.subtitle.offset_y,0);
+  assert.equal(vertical.subtitle.height,24);assert.equal(vertical.positionBounds.y.min,0);
+  assert.equal(subtitlePixel(vertical.frames,128,24,25,10),1);
+  const runtime=subtitleRuntime(horizontal.subtitle,horizontal.frames.length);
+  assert.equal(runtime.offset_y,undefined); // Existing firmware receives the shifted atlas.
+});
+test('face captions stay within their band after maximum vertical shift',()=>{
+  const caption=rasterizeSubtitle({text:'Hi',face:true,offset_y:63},pixelCanvas);
+  assert.equal(caption.subtitle.offset_y,8);
+  const frame=subtitleFrame(caption,0,0);
+  assert.equal(frame[62*16]&(1<<5),1<<5);assert.equal(frame[63*16]&(1<<6),1<<6);
 });

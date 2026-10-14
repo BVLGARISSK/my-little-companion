@@ -2,7 +2,7 @@ import {FRAME_BYTES} from './media.js';
 import {emotionFrame} from './faces.js';
 import {validateSubtitle,scrollOrigin,subtitlePixel} from './subtitle-format.js';
 export const DEFAULT_SUBTITLE={text:'你好，小伴！',font_px:16,font_family:'sans',bold:true,
-  writing:'horizontal',align:'center',face:false,keep_awake:false,motion:'fixed',direction:'forward',speed:30,emotion:'happy'};
+  writing:'horizontal',align:'center',offset_x:0,offset_y:0,face:false,keep_awake:false,motion:'fixed',direction:'forward',speed:30,emotion:'happy'};
 const families={sans:'"PingFang TC","Microsoft JhengHei",sans-serif',
   serif:'"Songti TC","PMingLiU",serif',mono:'"SFMono-Regular",Consolas,"Microsoft JhengHei",monospace'};
 const graphemes=text=>globalThis.Intl?.Segmenter
@@ -56,15 +56,28 @@ export function rasterizeSubtitle(options,makeCanvas=()=>document.createElement(
     });
   }
   const rgba=ctx.getImageData(0,0,width,height).data;
+  const lit=(x,y)=>{const i=(y*width+x)*4;return rgba[i+3]>=96&&.2126*rgba[i]+.7152*rgba[i+1]+.0722*rgba[i+2]>=24;};
+  let minX=width,minY=height,maxX=-1,maxY=-1;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(lit(x,y)){
+    minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
+  }
+  // Bake offsets into the atlas so preview, saved works and existing firmware agree.
+  // Only the axis perpendicular to scrolling moves; keep every lit pixel in bounds.
+  const positionBounds={x:{min:0,max:0},y:{min:0,max:0}};
+  if(maxX>=0){
+    if(c.motion!=='horizontal')positionBounds.x={min:-minX,max:width-1-maxX};
+    if(c.motion!=='vertical')positionBounds.y={min:-minY,max:height-1-maxY};
+  }
+  const clamp=(value,bounds)=>Math.max(bounds.min,Math.min(bounds.max,value));
+  config.offset_x=clamp(c.offset_x,positionBounds.x);config.offset_y=clamp(c.offset_y,positionBounds.y);
   const frames=Array.from({length:count},()=>new Uint8Array(FRAME_BYTES));
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-    const i=(y*width+x)*4;
-    // Low luminance threshold keeps coloured symbols while preserving dark details.
-    if(rgba[i+3]<96||.2126*rgba[i]+.7152*rgba[i+1]+.0722*rgba[i+2]<24)continue;
-    const tile=Math.floor(y/64)*Math.ceil(width/128)+Math.floor(x/128);
-    frames[tile][(y%64)*16+Math.floor((x%128)/8)]|=1<<(x%8);
+    if(!lit(x,y))continue;
+    const px=x+config.offset_x,py=y+config.offset_y;
+    const tile=Math.floor(py/64)*Math.ceil(width/128)+Math.floor(px/128);
+    frames[tile][(py%64)*16+Math.floor((px%128)/8)]|=1<<(px%8);
   }
-  return {kind:'subtitle',frames,fps:count===1?1:5,subtitle:config};
+  return {kind:'subtitle',frames,fps:count===1?1:5,subtitle:config,positionBounds};
 }
 export function subtitleFrame(asset,elapsed=0,faceTime=elapsed,repeat=true){
   const c=asset.subtitle,out=new Uint8Array(FRAME_BYTES),top=64-c.viewport_h;

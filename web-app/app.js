@@ -1,14 +1,14 @@
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.1.0';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.2.0';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.1.0';
+import {validatePlaylist} from './js/protocol.js?v=1.2.0';
 import {DraftStore} from './js/storage.js';
-import {CompanionBLE} from './js/ble.js?v=1.1.0';
-import {batteryLabel} from './js/battery.js?v=1.1.0';
-import {usbHostLabel,chargingLabel} from './js/power.js?v=1.1.0';
+import {CompanionBLE} from './js/ble.js?v=1.2.0';
+import {batteryLabel} from './js/battery.js?v=1.2.0';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.2.0';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.1.0';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.2.0';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.1.0';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.2.0';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -251,6 +251,29 @@ const browserSupported=!!navigator.bluetooth&&isSecureContext;
 $('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先畫畫、做作品，再連線同步。';
 let pairingKey=null,pairingDevice=null,pairingURL=null,pairingRevision=0,authorizationCount=0,connecting=false;
 let ownerURL=null,resetBusy=false,pendingReset=null;
+let powerDirty=false,powerRefresh=null;
+function updatePowerControls(){
+  const supported=ble.info?.capabilities?.includes('power_save'),ready=ble.connected&&ble.authorized&&supported;
+  $('info-power-save').textContent=powerSaveLabel(ble.connected?ble.info:null);
+  $('power-save-enable').disabled=!ready;$('power-save-apply').disabled=!ready||syncing||resetBusy;
+  if(!powerDirty&&typeof ble.info?.power_save_enabled==='boolean')$('power-save-enable').checked=ble.info.power_save_enabled;
+  if(!ble.connected){powerDirty=false;$('power-save-detail').textContent=powerDetails(null);}
+}
+async function refreshPowerState(){
+  if(!ble.authorized||!ble.info?.capabilities?.includes('power_save')||ble.busy||ble.pending?.size||powerRefresh)return;
+  const epoch=ble.connectionEpoch;const request=ble.command('GET_POWER',{},'power_save');powerRefresh=request;
+  try{const value=await request;if(ble.connected&&ble.connectionEpoch===epoch)$('power-save-detail').textContent=powerDetails(value);}
+  finally{if(powerRefresh===request)powerRefresh=null;}
+}
+bind('power-save-enable',()=>{powerDirty=true;},'change');
+bind('power-save-apply',async()=>{
+  if(syncing||resetBusy)throw new Error('請先完成目前的作品同步或裝置操作。');
+  const epoch=ble.connectionEpoch,value=await ble.command('SET_POWER',{enabled:$('power-save-enable').checked},'power_save');
+  if(!ble.connected||ble.connectionEpoch!==epoch)return;
+  if(typeof value.power_save_enabled!=='boolean')throw new Error('裝置沒有回報有效的省電設定。');
+  ble.info.power_save_enabled=value.power_save_enabled;powerDirty=false;updatePowerControls();$('power-save-detail').textContent=powerDetails(value);
+  toast(value.power_save_enabled?'已啟用自動省電。':'已停用進階省電，原本 60 秒靜止關屏仍保留。');
+});
 function clearOwnerQR(){ownerURL=null;$('owner-pairing-card').hidden=true;$('owner-pairing-link').value='';$('owner-link-fallback').hidden=true;const c=$('owner-pairing-qr');c.getContext('2d').clearRect(0,0,c.width,c.height);}
 function updateAdminTools(){
   const admin=ble.connected&&ble.authorized&&ble.role==='admin',resetSupported=ble.info?.capabilities?.includes('factory_reset'),pairingSupported=ble.info?.capabilities?.includes('owner_pairing');
@@ -330,7 +353,7 @@ async function authorize(){
     const memoryMessage=remembered?'已記住這台吊飾，下次在同一個瀏覽器按「尋找小夥伴」即可，不用再掃碼。':memoryFailed||remember&&!storeReady?'瀏覽器暫時無法更新授權碼記憶，下次請重新掃描小卡。':'下次使用時，請重新掃描小卡。';
     $('pairing-message').textContent=roleMessage+memoryMessage;
     $('auth-key').value='';toast(remembered?'已授權，並記住這台吊飾。':memoryFailed||remember&&!storeReady?'已授權，暫時無法記住授權碼。':roleMessage);
-    await checkPendingReset();
+    await checkPendingReset();await refreshPowerState().catch(()=>{});
   }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
 }
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
@@ -339,11 +362,11 @@ ble.addEventListener('state',e=>{
   $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
   $('info-usb').textContent=usbHostLabel(info);$('info-charging').textContent=chargingLabel(info);$('power-note').hidden=!connected;
   $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
-  if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();
+  if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();updatePowerControls();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
 async function refreshBatteryInfo(){
   if(document.hidden||!ble.authorized)return;
-  try{await ble.refreshInfo();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
+  try{await ble.refreshInfo();await refreshPowerState();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
 }
 setInterval(refreshBatteryInfo,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshBatteryInfo();});

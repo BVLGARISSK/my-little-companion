@@ -127,3 +127,12 @@ DATA header：
 - 小包／大包、隨機斷線、重複 DATA、丟 ACK、圖庫滿、上傳時斷電、清單提交時斷電。
 - C5 Flash、LittleFS 與播放工作可並行，不因寫檔停止 OLED。LittleFS 不可在日常掛載失敗時自動格式化。
 - 未來 OTA 另設 capability，簽章與板型／版本驗證在 C5 端執行，目前網頁不傳韌體。
+
+
+## 運作 RAM 與作品容量
+
+網頁 1.2.3 將作品檔案容量（`storage_total`／`storage_free`，來自 LittleFS）和運作 RAM 分開顯示。C5 0.6.1 在 INFO 增加 `memory` 能力；已授權客戶端使用 `GET_MEMORY`，回覆 `device_id`、`ram_scope: "internal_8bit_heap"`、`ram_total`、`ram_free`、`ram_largest_block` 和 `ram_sampled_ms`（位元組／開機毫秒）。
+
+RAM 讀取使用 ESP-IDF 的 `MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT`：`heap_caps_get_total_size()` 回報可動態分配區域總量，`heap_caps_get_info()` 回報當下可用量及最大連續可用區塊。這是執行中的 heap 資料，排除了 Flash、外部 PSRAM 與已分配給程式的靜態區域。來源見 [Espressif 記憶體 API](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32c5/api-reference/system/mem_alloc.html)。
+
+GET_MEMORY 在主迴圈處理，不改播放、亮度、靜止計時或 BLE 上傳閒置窗口。INFO 僅加上能力名稱，RAM 數據走原有可分片的 EVENT 回覆，避免 INFO 超過 512 bytes。網頁在授權後、每 30 秒前景更新、手動更新，以及作品傳送／清單同步／裝置作品刪除後讀取；忙碌時跳過。斷線會清除 RAM 顯示，延遲回覆不會套用到新連線；不支援的韌體顯示更新提示。

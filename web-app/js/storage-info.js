@@ -5,3 +5,10 @@ export function storageUsage(info) {
   const used=total-free;
   return {free,total,used,usedPercent:used/total*100};
 }
+
+export function memoryUsage(info) {
+  if(info?.ram_scope!=='internal_8bit_heap')return null;
+  const value=storageUsage({storage_free:info.ram_free,storage_total:info.ram_total}),largest=info.ram_largest_block;
+  if(!value||!Number.isSafeInteger(largest)||largest<0||largest>value.free)return null;
+  return {...value,largest};
+}

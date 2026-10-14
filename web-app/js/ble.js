@@ -1,10 +1,11 @@
-import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.2.2';
-import {crc32,encodeOLA} from './media.js?v=1.2.2';
+import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.2.3';
+import {crc32,encodeOLA} from './media.js?v=1.2.3';
 import {decryptOwnerPairing} from './administration.js';
-import {subtitleRuntime} from './subtitle-format.js?v=1.2.2';
+import {subtitleRuntime} from './subtitle-format.js?v=1.2.3';
+import {memoryUsage} from './storage-info.js?v=1.2.3';
 
 export class CompanionBLE extends EventTarget {
-  constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
+  constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.memory=null;this.memoryRefresh=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
   get connected(){return !!this.device?.gatt?.connected;}
   emit(name,detail){this.dispatchEvent(new CustomEvent(name,{detail}));}
   refreshInfo(){
@@ -20,6 +21,24 @@ export class CompanionBLE extends EventTarget {
       Object.assign(info,next);
       this.emit('state',{connected:true,authorized:this.authorized,role:this.role,info});return true;
     }).finally(()=>{if(this.infoRefresh===refresh)this.infoRefresh=null;});
+    return refresh.promise;
+  }
+  refreshMemory(){
+    if(this.memoryRefresh)return this.memoryRefresh.promise;
+    if(!this.connected||!this.authorized||!this.info?.capabilities?.includes('memory')||this.busy||this.authorization||this.pending.size)return Promise.resolve(false);
+    const epoch=this.connectionEpoch,device=this.device,info=this.info;
+    const refresh={promise:null};this.memoryRefresh=refresh;
+    refresh.promise=Promise.resolve().then(async()=>{
+      const value=await this.command('GET_MEMORY',{},'memory');
+      if(!this.connected||this.connectionEpoch!==epoch||this.device!==device||this.info!==info)return false;
+      if(value.device_id!==info.device_id||!memoryUsage(value))throw new Error('裝置回報的 RAM 資料無效，請稍後更新。');
+      this.memory=value;return true;
+    }).finally(()=>{
+      if(this.memoryRefresh!==refresh)return;
+      this.memoryRefresh=null;
+      if(this.connected&&this.connectionEpoch===epoch&&this.info===info)this.emit('state',{connected:true,authorized:this.authorized,role:this.role,info});
+    });
+    this.emit('state',{connected:true,authorized:this.authorized,role:this.role,info});
     return refresh.promise;
   }
   async connect(){
@@ -40,7 +59,7 @@ export class CompanionBLE extends EventTarget {
     }catch(error){this.disconnect();throw error;}
   }
   onDisconnect(){
-    this.connectionEpoch++;this.infoRefresh=null;this.authorization=null;this.authorized=false;this.role=null;this.adminKey=null;this.info=null;this.assembler.clear();this.latestAck=null;
+    this.connectionEpoch++;this.infoRefresh=null;this.memoryRefresh=null;this.memory=null;this.authorization=null;this.authorized=false;this.role=null;this.adminKey=null;this.info=null;this.assembler.clear();this.latestAck=null;
     for(const p of this.pending.values())p.reject(new Error('連線中斷；已完成的作品會留在吊飾。'));this.pending.clear();
     this.ackWaiter?.reject(new Error('連線中斷，重新連線後可再同步。'));this.ackWaiter=null;
     this.emit('state',{connected:false,authorized:false,info:null});

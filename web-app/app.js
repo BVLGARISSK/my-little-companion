@@ -1,15 +1,15 @@
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.2.2';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.2.3';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.2.2';
+import {validatePlaylist} from './js/protocol.js?v=1.2.3';
 import {DraftStore} from './js/storage.js';
-import {storageUsage} from './js/storage-info.js?v=1.2.2';
-import {CompanionBLE} from './js/ble.js?v=1.2.2';
-import {batteryLabel} from './js/battery.js?v=1.2.2';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.2.2';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.2.3';
+import {CompanionBLE} from './js/ble.js?v=1.2.3';
+import {batteryLabel} from './js/battery.js?v=1.2.3';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.2.3';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.2.2';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.2.3';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.2.2';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.2.3';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -257,7 +257,20 @@ let storageRefreshing=false;
 function updateStorageControls(){
   $('storage-refresh').disabled=!ble.connected||!ble.authorized||syncing||resetBusy||ble.busy||storageRefreshing;
   $('storage-refresh').textContent=storageRefreshing?'更新中…':'更新容量';
+  $('ram-refresh').disabled=!ble.connected||!ble.authorized||!ble.info?.capabilities?.includes('memory')||syncing||resetBusy||ble.busy||!!ble.memoryRefresh;
 }
+function renderRamInfo(info){
+  const value=memoryUsage(ble.memory),supported=info?.capabilities?.includes('memory'),meter=$('ram-meter');meter.hidden=!value;
+  $('info-ram').textContent=value?`${formatBytes(value.free)} 可用`:!info?'尚未連線':!supported?'需要更新 C5 韌體':!ble.authorized?'授權後讀取':'等待讀取 RAM';
+  $('ram-used').textContent=value?`已用 ${formatBytes(value.used)}（${Math.round(value.usedPercent)}%）`:'';
+  $('ram-total').textContent=value?`可分配總量 ${formatBytes(value.total)}`:'';
+  $('ram-largest').textContent=value?`最大連續可用區塊 ${formatBytes(value.largest)}`:'';
+  $('ram-note').textContent=value?'顯示程式可動態分配的內部 RAM，會隨藍牙與播放狀態變動。連線時每 30 秒更新。':info&&!supported?'C5 0.6.1 以上支援 RAM 回報；作品容量仍可正常查看。':'連線並授權後，即可查看吊飾的運作記憶體。';
+  if(value){meter.value=value.usedPercent;meter.setAttribute('aria-valuetext',`已使用 ${Math.round(value.usedPercent)}%，剩餘 ${formatBytes(value.free)}`);}
+  else{meter.removeAttribute('value');meter.removeAttribute('aria-valuetext');}
+  updateStorageControls();
+}
+bind('ram-refresh',async()=>{try{if(!await ble.refreshMemory())throw new Error('請等目前的裝置操作完成，再更新 RAM。');}finally{updateStorageControls();}});
 function renderStorageInfo(info){
   const value=storageUsage(info),meter=$('storage-meter');meter.hidden=!value;
   $('info-storage').textContent=value?`${formatBytes(value.free)} 可用`:info?'尚未回報容量':'尚未連線';
@@ -272,10 +285,10 @@ bind('storage-refresh',async()=>{
   if(!ble.connected||!ble.authorized)throw new Error('請先連線並完成授權。');
   if(syncing||resetBusy||ble.busy)throw new Error('請等目前的作品同步或裝置操作完成。');
   storageRefreshing=true;updateStorageControls();
-  try{if(!await ble.refreshInfo())throw new Error('裝置正在處理其他操作，請稍後更新容量。');}
+  try{if(!await ble.refreshInfo())throw new Error('裝置正在處理其他操作，請稍後更新容量。');await ble.refreshMemory();}
   finally{storageRefreshing=false;updateStorageControls();}
 });
-async function refreshStorageAfterChange(){if(ble.connected&&ble.authorized)await ble.refreshInfo().catch(()=>{});}
+async function refreshStorageAfterChange(){if(ble.connected&&ble.authorized){await ble.refreshInfo().catch(()=>{});await ble.refreshMemory().catch(()=>{});}}
 function updatePowerControls(){
   const supported=ble.info?.capabilities?.includes('power_save'),ready=ble.connected&&ble.authorized&&supported;
   $('info-power-save').textContent=powerSaveLabel(ble.connected?ble.info:null);
@@ -378,20 +391,20 @@ async function authorize(){
     const memoryMessage=remembered?'已記住這台吊飾，下次在同一個瀏覽器按「尋找小夥伴」即可，不用再掃碼。':memoryFailed||remember&&!storeReady?'瀏覽器暫時無法更新授權碼記憶，下次請重新掃描小卡。':'下次使用時，請重新掃描小卡。';
     $('pairing-message').textContent=roleMessage+memoryMessage;
     $('auth-key').value='';toast(remembered?'已授權，並記住這台吊飾。':memoryFailed||remember&&!storeReady?'已授權，暫時無法記住授權碼。':roleMessage);
-    await checkPendingReset();await refreshPowerState().catch(()=>{});
+    await checkPendingReset();await refreshPowerState().catch(()=>{});await ble.refreshMemory().catch(()=>{});
   }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
 }
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
-  $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';renderStorageInfo(info);$('info-firmware').textContent=info?.firmware||'—';
+  $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';renderStorageInfo(info);renderRamInfo(info);$('info-firmware').textContent=info?.firmware||'—';
   $('info-usb').textContent=usbHostLabel(info);$('info-charging').textContent=chargingLabel(info);$('power-note').hidden=!connected;
   $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
   if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();updatePowerControls();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
 async function refreshBatteryInfo(){
   if(document.hidden||!ble.authorized)return;
-  try{await ble.refreshInfo();await refreshPowerState();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
+  try{await ble.refreshInfo();await refreshPowerState();await ble.refreshMemory();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
 }
 setInterval(refreshBatteryInfo,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshBatteryInfo();});

@@ -93,21 +93,21 @@ function pixelCanvas(){
 test('position is baked into pixels, clamped without loss, and preserved by backup',()=>{
   const original=rasterizeSubtitle({text:'Hi'},pixelCanvas);
   const shifted=rasterizeSubtitle({text:'Hi',offset_x:127,offset_y:63},pixelCanvas);
-  assert.equal(shifted.subtitle.offset_x,121);assert.equal(shifted.subtitle.offset_y,52);
+  assert.equal(shifted.subtitle.offset_x,121);assert.equal(shifted.subtitle.offset_y,31);
   assert.equal(subtitlePixel(shifted.frames,128,64,126,62),1);
   assert.equal(subtitlePixel(shifted.frames,128,64,127,63),1);
   const restored=validateAsset({...asset(shifted.subtitle,shifted.frames),frames:shifted.frames.map(f=>Array.from(f))});
-  assert.equal(restored.subtitle.offset_x,121);assert.equal(restored.subtitle.offset_y,52);
+  assert.equal(restored.subtitle.offset_x,121);assert.equal(restored.subtitle.offset_y,31);
   assert.deepEqual(restored.frames,shifted.frames);
   assert.equal(validateSubtitle(config(),1).offset_x,0);
   assert.deepEqual(rasterizeSubtitle({text:'Hi',offset_x:0,offset_y:0},pixelCanvas).frames,original.frames);
-  for(const change of [{offset_x:128},{offset_y:-64},{offset_x:.5},{offset_y:'1'}])assert.throws(()=>validateSubtitle(config(change),1));
+  for(const change of [{offset_x:128},{offset_y:-64},{offset_x:.5},{offset_y:'1'},{position_version:3},{position_version:'2'}])assert.throws(()=>validateSubtitle(config(change),1));
 });
 test('marquee offsets move only perpendicular to travel without changing its span',()=>{
   const horizontal=rasterizeSubtitle({text:'Hi',motion:'horizontal',offset_x:10,offset_y:20},pixelCanvas);
   assert.equal(horizontal.subtitle.offset_x,0);assert.equal(horizontal.subtitle.offset_y,20);
   assert.equal(horizontal.subtitle.width,20);assert.equal(horizontal.positionBounds.x.max,0);
-  assert.equal(subtitlePixel(horizontal.frames,20,64,5,30),1);
+  assert.equal(subtitlePixel(horizontal.frames,20,64,5,51),1);
   const vertical=rasterizeSubtitle({text:'Hi',motion:'vertical',offset_x:20,offset_y:10},pixelCanvas);
   assert.equal(vertical.subtitle.offset_x,20);assert.equal(vertical.subtitle.offset_y,0);
   assert.equal(vertical.subtitle.height,24);assert.equal(vertical.positionBounds.y.min,0);
@@ -117,7 +117,26 @@ test('marquee offsets move only perpendicular to travel without changing its spa
 });
 test('face captions stay within their band after maximum vertical shift',()=>{
   const caption=rasterizeSubtitle({text:'Hi',face:true,offset_y:63},pixelCanvas);
-  assert.equal(caption.subtitle.offset_y,8);
+  assert.equal(caption.subtitle.offset_y,9);
   const frame=subtitleFrame(caption,0,0);
   assert.equal(frame[62*16]&(1<<5),1<<5);assert.equal(frame[63*16]&(1<<6),1<<6);
+});
+
+test('zero vertical offset balances visible ink instead of font line boxes',()=>{
+  const centered=rasterizeSubtitle({text:'Hi'},pixelCanvas);
+  assert.equal(subtitlePixel(centered.frames,128,64,5,31),1);
+  assert.equal(subtitlePixel(centered.frames,128,64,6,32),1);
+  assert.equal(centered.subtitle.offset_y,0);assert.equal(centered.subtitle.position_version,2);
+});
+test('legacy offsets migrate once and preserve their exact atlas on reediting',()=>{
+  for(const offset_y of [-10,-5,0,10,20]){
+    const migrated=rasterizeSubtitle({text:'Hi',position_version:1,offset_y},pixelCanvas);
+    assert.equal(migrated.subtitle.offset_y,offset_y-21);
+    assert.equal(subtitlePixel(migrated.frames,128,64,5,10+offset_y),1);
+    const reopened=rasterizeSubtitle(migrated.subtitle,pixelCanvas);
+    assert.deepEqual(reopened.frames,migrated.frames);assert.equal(reopened.subtitle.offset_y,migrated.subtitle.offset_y);
+    const restored=validateSubtitle(migrated.subtitle,migrated.frames.length);
+    assert.equal(restored.position_version,2);assert.equal(subtitleRuntime(restored).position_version,undefined);
+  }
+  assert.equal(validateSubtitle(config()).position_version,1);
 });

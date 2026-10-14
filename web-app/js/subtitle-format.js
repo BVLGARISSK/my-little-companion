@@ -22,10 +22,11 @@ export function validateSubtitle(value,count){
     !['sans','serif','mono'].includes(value.font_family)||typeof value.bold!=='boolean'||
     !['horizontal','vertical'].includes(value.writing)||!['left','center','right'].includes(value.align)||
     !Number.isInteger(value.offset_x??0)||Math.abs(value.offset_x??0)>127||
-    !Number.isInteger(value.offset_y??0)||Math.abs(value.offset_y??0)>63)
+    !Number.isInteger(value.offset_y??0)||Math.abs(value.offset_y??0)>63||
+    ![1,2].includes(value.position_version??1))
     throw new Error('字幕文字或字型設定錯誤');
   return {...runtime,text:value.text,font_px:value.font_px,font_family:value.font_family,
-    bold:value.bold,writing:value.writing,align:value.align,offset_x:value.offset_x??0,offset_y:value.offset_y??0};
+    bold:value.bold,writing:value.writing,align:value.align,offset_x:value.offset_x??0,offset_y:value.offset_y??0,position_version:value.position_version??1};
 }
 export function scrollOrigin(size,viewport,speed,elapsed,reverse=false,repeat=true){
   const travel=Math.floor(Math.max(0,elapsed)*speed/1000),span=size+viewport+16;

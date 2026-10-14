@@ -1,17 +1,17 @@
-import {setupExperience} from './js/experience-ui.js?v=1.3.1';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.1';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.1';
+import {setupExperience} from './js/experience-ui.js?v=1.3.2';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.2';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.2';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.3.1';
+import {validatePlaylist} from './js/protocol.js?v=1.3.2';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.1';
-import {CompanionBLE} from './js/ble.js?v=1.3.1';
-import {batteryLabel} from './js/battery.js?v=1.3.1';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.1';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.2';
+import {CompanionBLE} from './js/ble.js?v=1.3.2';
+import {batteryLabel} from './js/battery.js?v=1.3.2';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.2';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.1';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.2';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.1';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.2';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -19,7 +19,7 @@ let storeReady=false,saveTimer,toastTimer,saveQueue=Promise.resolve(),filter='al
 const blank=()=>new Uint8Array(32*16),newId=()=>crypto.randomUUID().replaceAll('-','');
 let state={version:1,assets:[],playlist:{version:1,name:'My little day',mode:'loop',items:[]},pixel:{width:32,height:16,frames:[blank()],index:0,name:'我的小塗鴉',fps:8}};
 let undo=[],redo=[],tool='pen',drawing=false,lastPoint=null,dragIndex=null;
-let subtitlePreview=null,subtitleStarted=0,subtitleTimer;
+let subtitlePreview=null,subtitleStarted=0,subtitleTimer,subtitlePositionVersion=2;
 let experienceUI;
 const converter=new MediaConverter($('source-video'));
 const nameOf=item=>item.type==='emotion'?EMOTIONS.find(e=>e.id===item.id)?.name:state.assets.find(a=>a.id===item.id)?.name;
@@ -53,9 +53,10 @@ function addAsset(name,frames,fps){
 function subtitleDraft(){return {text:$('subtitle-text').value,font_px:Number($('subtitle-font-size').value),font_family:$('subtitle-font-family').value,
   bold:$('subtitle-bold').checked,writing:$('subtitle-writing').value,align:$('subtitle-align').value,face:$('subtitle-face').checked,keep_awake:$('subtitle-keep-awake').checked,
   motion:$('subtitle-motion').value,direction:$('subtitle-direction').value,speed:Number($('subtitle-speed').value),emotion:$('subtitle-emotion').value,
-  offset_x:Number($('subtitle-x').value),offset_y:Number($('subtitle-y').value)};}
+  offset_x:Number($('subtitle-x').value),offset_y:Number($('subtitle-y').value),position_version:subtitlePositionVersion};}
 function applySubtitleDraft(value={}){
   const c={...DEFAULT_SUBTITLE,...value};if(typeof value.name==='string')$('subtitle-name').value=value.name;
+  subtitlePositionVersion=value.position_version??(Object.keys(value).length?1:2);
   const ids={text:'text',font_px:'font-size',font_family:'font-family',writing:'writing',align:'align',motion:'motion',direction:'direction',speed:'speed',emotion:'emotion'};
   for(const [key,id] of Object.entries(ids))$('subtitle-'+id).value=c[key];
   for(const [axis,limit] of [['x',127],['y',63]]){const input=$('subtitle-'+axis);input.min=-limit;input.max=limit;input.value=c['offset_'+axis]??0;}
@@ -67,12 +68,13 @@ function updateSubtitle(save=false){
   $('subtitle-count').textContent=Array.from(draft.text).length+' / 160';$('subtitle-speed').disabled=draft.motion==='fixed';
   $('subtitle-direction').disabled=draft.motion==='fixed';$('subtitle-emotion').disabled=!draft.face;
   try{subtitlePreview=rasterizeSubtitle(draft);subtitleStarted=performance.now();$('subtitle-error').hidden=true;
+    subtitlePositionVersion=2;draft.position_version=2;
     for(const axis of ['x','y']){
       const input=$('subtitle-'+axis),bounds=subtitlePreview.positionBounds[axis],offset=subtitlePreview.subtitle['offset_'+axis];
       input.min=bounds.min;input.max=bounds.max;input.value=offset;input.disabled=bounds.min===bounds.max;
       draft['offset_'+axis]=offset;$('subtitle-'+axis+'-output').textContent=(offset>0?'+':'')+offset+' px';
     }
-    $('subtitle-position-hint').textContent=(draft.motion==='horizontal'?'水平跑馬燈可上下微調。':draft.motion==='vertical'?'垂直跑馬燈可左右微調。':'固定字幕可上下、左右微調。')+(draft.face?'表情＋字幕的文字保留在下方字幕區。':'')+'範圍依文字大小調整，避免切掉文字。';
+    $('subtitle-position-hint').textContent=(draft.motion==='horizontal'?'水平跑馬燈可上下微調；上下 0 px 依實際字形置中。':draft.motion==='vertical'?'垂直跑馬燈可左右微調。':'固定字幕可上下、左右微調；上下 0 px 依實際字形置中。')+(draft.face?'表情＋字幕的文字保留在下方字幕區。':'')+'範圍依文字大小調整，避免切掉文字。';
     $('subtitle-info').textContent=`128 × 64 · ${formatBytes(subtitlePreview.frames.length*FRAME_BYTES+21)} · 可離線播放`;
     drawFrame($('subtitle-canvas'),subtitleThumbnail(subtitlePreview));
   }catch(error){subtitlePreview=null;$('subtitle-x').disabled=true;$('subtitle-y').disabled=true;$('subtitle-error').hidden=false;$('subtitle-error').textContent=error.message;$('subtitle-info').textContent='請調整字幕設定';drawFrame($('subtitle-canvas'),new Uint8Array(FRAME_BYTES));}

@@ -2,7 +2,7 @@ import {FRAME_BYTES} from './media.js';
 import {emotionFrame} from './faces.js';
 import {validateSubtitle,scrollOrigin,subtitlePixel} from './subtitle-format.js';
 export const DEFAULT_SUBTITLE={text:'你好，小伴！',font_px:16,font_family:'sans',bold:true,
-  writing:'horizontal',align:'center',offset_x:0,offset_y:0,face:false,keep_awake:false,motion:'fixed',direction:'forward',speed:30,emotion:'happy'};
+  writing:'horizontal',align:'center',offset_x:0,offset_y:0,position_version:2,face:false,keep_awake:false,motion:'fixed',direction:'forward',speed:30,emotion:'happy'};
 const families={sans:'"PingFang TC","Microsoft JhengHei",sans-serif',
   serif:'"Songti TC","PMingLiU",serif',mono:'"SFMono-Regular",Consolas,"Microsoft JhengHei",monospace'};
 const graphemes=text=>globalThis.Intl?.Segmenter
@@ -64,16 +64,22 @@ export function rasterizeSubtitle(options,makeCanvas=()=>document.createElement(
   // Bake offsets into the atlas so preview, saved works and existing firmware agree.
   // Only the axis perpendicular to scrolling moves; keep every lit pixel in bounds.
   const positionBounds={x:{min:0,max:0},y:{min:0,max:0}};
+  let centerY=0;
   if(maxX>=0){
     if(c.motion!=='horizontal')positionBounds.x={min:-minX,max:width-1-maxX};
-    if(c.motion!=='vertical')positionBounds.y={min:-minY,max:height-1-maxY};
+    if(c.motion!=='vertical'){
+      centerY=Math.floor((height-(maxY-minY+1))/2)-minY;
+      positionBounds.y={min:-(minY+centerY),max:height-1-(maxY+centerY)};
+    }
   }
   const clamp=(value,bounds)=>Math.max(bounds.min,Math.min(bounds.max,value));
-  config.offset_x=clamp(c.offset_x,positionBounds.x);config.offset_y=clamp(c.offset_y,positionBounds.y);
+  // Convert old offsets to the new origin without changing their rendered pixels.
+  const requestedY=c.position_version===1?c.offset_y-centerY:c.offset_y;
+  config.offset_x=clamp(c.offset_x,positionBounds.x);config.offset_y=clamp(requestedY,positionBounds.y);config.position_version=2;
   const frames=Array.from({length:count},()=>new Uint8Array(FRAME_BYTES));
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     if(!lit(x,y))continue;
-    const px=x+config.offset_x,py=y+config.offset_y;
+    const px=x+config.offset_x,py=y+centerY+config.offset_y;
     const tile=Math.floor(py/64)*Math.ceil(width/128)+Math.floor(px/128);
     frames[tile][(py%64)*16+Math.floor((px%128)/8)]|=1<<(px%8);
   }

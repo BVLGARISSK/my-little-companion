@@ -25,3 +25,12 @@ input:is(:not([type]),[type=text],[type=password],[type=number],[type=search],[t
 .asset-actions{margin-top:auto;padding-top:12px}
 #view-library .section-title{flex-wrap:wrap}
 #asset-dialog-name{overflow-wrap:anywhere}
+
+
+.storage-summary{min-width:0;margin:0 0 22px;padding:16px;background:#f3f4ed;border:1px solid var(--border);border-radius:16px}
+.storage-summary .section-title{gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.storage-summary h3{font-size:13px}
+.storage-value{font-size:24px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.storage-summary progress{height:8px;margin:12px 0}
+.storage-breakdown{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:11px;line-height:1.7}
+.storage-summary .small{margin-top:9px;font-size:11px}

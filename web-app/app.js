@@ -1,14 +1,15 @@
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.2.1';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.2.2';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.2.1';
+import {validatePlaylist} from './js/protocol.js?v=1.2.2';
 import {DraftStore} from './js/storage.js';
-import {CompanionBLE} from './js/ble.js?v=1.2.1';
-import {batteryLabel} from './js/battery.js?v=1.2.1';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.2.1';
+import {storageUsage} from './js/storage-info.js?v=1.2.2';
+import {CompanionBLE} from './js/ble.js?v=1.2.2';
+import {batteryLabel} from './js/battery.js?v=1.2.2';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.2.2';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.2.1';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.2.2';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.2.1';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.2.2';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -252,6 +253,29 @@ $('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙�
 let pairingKey=null,pairingDevice=null,pairingURL=null,pairingRevision=0,authorizationCount=0,connecting=false;
 let ownerURL=null,resetBusy=false,pendingReset=null;
 let powerDirty=false,powerRefresh=null;
+let storageRefreshing=false;
+function updateStorageControls(){
+  $('storage-refresh').disabled=!ble.connected||!ble.authorized||syncing||resetBusy||ble.busy||storageRefreshing;
+  $('storage-refresh').textContent=storageRefreshing?'更新中…':'更新容量';
+}
+function renderStorageInfo(info){
+  const value=storageUsage(info),meter=$('storage-meter');meter.hidden=!value;
+  $('info-storage').textContent=value?`${formatBytes(value.free)} 可用`:info?'尚未回報容量':'尚未連線';
+  $('storage-used').textContent=value?`已用 ${formatBytes(value.used)}（${Math.round(value.usedPercent)}%）`:'';
+  $('storage-total').textContent=value?`總容量 ${formatBytes(value.total)}`:'';
+  $('storage-note').textContent=value?'照片、動畫與字幕共用此空間。連線時每 30 秒更新；系統會保留部分容量。':info?'裝置尚未回報有效的作品容量。':'連線並授權後，即可查看吊飾剩餘的作品容量。';
+  if(value){meter.value=value.usedPercent;meter.setAttribute('aria-valuetext',`已使用 ${Math.round(value.usedPercent)}%，剩餘 ${formatBytes(value.free)}`);}
+  else{meter.removeAttribute('value');meter.removeAttribute('aria-valuetext');}
+  updateStorageControls();
+}
+bind('storage-refresh',async()=>{
+  if(!ble.connected||!ble.authorized)throw new Error('請先連線並完成授權。');
+  if(syncing||resetBusy||ble.busy)throw new Error('請等目前的作品同步或裝置操作完成。');
+  storageRefreshing=true;updateStorageControls();
+  try{if(!await ble.refreshInfo())throw new Error('裝置正在處理其他操作，請稍後更新容量。');}
+  finally{storageRefreshing=false;updateStorageControls();}
+});
+async function refreshStorageAfterChange(){if(ble.connected&&ble.authorized)await ble.refreshInfo().catch(()=>{});}
 function updatePowerControls(){
   const supported=ble.info?.capabilities?.includes('power_save'),ready=ble.connected&&ble.authorized&&supported;
   $('info-power-save').textContent=powerSaveLabel(ble.connected?ble.info:null);
@@ -276,6 +300,7 @@ bind('power-save-apply',async()=>{
 });
 function clearOwnerQR(){ownerURL=null;$('owner-pairing-card').hidden=true;$('owner-pairing-link').value='';$('owner-link-fallback').hidden=true;const c=$('owner-pairing-qr');c.getContext('2d').clearRect(0,0,c.width,c.height);}
 function updateAdminTools(){
+  updateStorageControls();
   const admin=ble.connected&&ble.authorized&&ble.role==='admin',resetSupported=ble.info?.capabilities?.includes('factory_reset'),pairingSupported=ble.info?.capabilities?.includes('owner_pairing');
   $('factory-reset').disabled=!admin||!resetSupported||resetBusy||syncing;
   $('read-owner-pairing').disabled=!admin||!pairingSupported||resetBusy||syncing;
@@ -359,7 +384,7 @@ async function authorize(){
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
-  $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';$('info-storage').textContent=Number.isFinite(info?.storage_free)?`${formatBytes(info.storage_free)} 可用 / ${formatBytes(info.storage_total)}`:'—';$('info-firmware').textContent=info?.firmware||'—';
+  $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';renderStorageInfo(info);$('info-firmware').textContent=info?.firmware||'—';
   $('info-usb').textContent=usbHostLabel(info);$('info-charging').textContent=chargingLabel(info);$('power-note').hidden=!connected;
   $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
   if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();updatePowerControls();
@@ -399,7 +424,7 @@ function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('trans
 async function transferAsset(asset){
   if(syncing)throw new Error('正在同步，請等這次傳送完成。');
   syncing=true;updateAdminTools();progressPanel(`傳送「${asset.name}」`,0,'正在準備…');
-  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;updateAdminTools();$('transfer-panel').hidden=true;}
+  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;updateAdminTools();$('transfer-panel').hidden=true;await refreshStorageAfterChange();}
 }
 bind('cancel-transfer',()=>ble.cancel());
 bind('sync-playlist',async()=>{
@@ -408,12 +433,12 @@ bind('sync-playlist',async()=>{
   const snapshot=structuredClone(state),assets=snapshot.assets.filter(a=>snapshot.playlist.items.some(i=>i.type!=='emotion'&&i.id===a.id));if(assets.length)ble.capability('media');syncing=true;updateAdminTools();$('sync-playlist').disabled=true;ble.cancelRequested=false;
   try{for(let i=0;i<assets.length;i++){if(ble.cancelRequested)throw new Error('已取消同步');await ble.upload(assets[i],(p,sent,total)=>progressPanel(`同步作品 ${i+1} / ${assets.length}`,(i+p)/(assets.length+1),`${assets[i].name} · ${formatBytes(sent)} / ${formatBytes(total)}`));}
     if(ble.cancelRequested)throw new Error('已取消同步');progressPanel('儲存播放清單',.95,'作品傳送完成，正在確認清單…');await ble.request('SET_PLAYLIST',{playlist:snapshot.playlist},30000);toast('清單和作品都同步好了。');
-  }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;}
+  }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;await refreshStorageAfterChange();}
 });
 bind('refresh-remote',async()=>{
   const result=await ble.command('LIST_MEDIA',{},'media');const list=$('remote-library');list.replaceChildren();
   if(!Array.isArray(result.items))throw new Error('吊飾的作品清單格式錯誤');
-  for(const item of result.items){if(!/^[a-f0-9]{32}$/.test(item.id))continue;const row=document.createElement('div');row.className='remote-item';const name=document.createElement('span');name.textContent=item.name||item.id;const actions=document.createElement('div');actions.className='button-row';actions.append(button('播放',async()=>{await ble.command('PLAY_MEDIA',{id:item.id},'media');toast('小伴開始播放這個作品。');}),button('刪除',async()=>{if(!await confirmAction('刪除吊飾上的作品？',`會永久刪除吊飾上的「${item.name||item.id}」。如果被播放清單使用，吊飾應拒絕刪除。`))return;await ble.command('DELETE_MEDIA',{id:item.id},'media');row.remove();toast('已從吊飾移除。');}));row.append(name,actions);list.append(row);}
+  for(const item of result.items){if(!/^[a-f0-9]{32}$/.test(item.id))continue;const row=document.createElement('div');row.className='remote-item';const name=document.createElement('span');name.textContent=item.name||item.id;const actions=document.createElement('div');actions.className='button-row';actions.append(button('播放',async()=>{await ble.command('PLAY_MEDIA',{id:item.id},'media');toast('小伴開始播放這個作品。');}),button('刪除',async()=>{if(!await confirmAction('刪除吊飾上的作品？',`會永久刪除吊飾上的「${item.name||item.id}」。如果被播放清單使用，吊飾應拒絕刪除。`))return;await ble.command('DELETE_MEDIA',{id:item.id},'media');row.remove();toast('已從吊飾移除。');await refreshStorageAfterChange();}));row.append(name,actions);list.append(row);}
   if(!result.items.length)list.textContent='吊飾裡還沒有作品。';
 });
 

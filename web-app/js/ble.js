@@ -1,8 +1,9 @@
-import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.2.3';
-import {crc32,encodeOLA} from './media.js?v=1.2.3';
+import {syncMetadata,validateSyncPlan,requireSyncCapacity} from './smart-sync.js?v=1.3.0';
+import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.3.0';
+import {crc32,encodeOLA} from './media.js?v=1.3.0';
 import {decryptOwnerPairing} from './administration.js';
-import {subtitleRuntime} from './subtitle-format.js?v=1.2.3';
-import {memoryUsage} from './storage-info.js?v=1.2.3';
+import {subtitleRuntime} from './subtitle-format.js?v=1.3.0';
+import {memoryUsage} from './storage-info.js?v=1.3.0';
 
 export class CompanionBLE extends EventTarget {
   constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.memory=null;this.memoryRefresh=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}
@@ -167,13 +168,27 @@ export class CompanionBLE extends EventTarget {
     });
   }
   cancel(){this.cancelRequested=true;}
+  async planSync(assets){
+    this.capability('smart_sync');if(this.busy)throw new Error('正在傳送作品，請稍後規劃同步。');
+    if(assets.length>32||new Set(assets.map(a=>a.id)).size!==assets.length)throw new Error('一次最多同步 32 個不同作品。');
+    const device=this.info.device_id,epoch=this.connectionEpoch,works=await Promise.all(assets.map(a=>syncMetadata(a)));
+    const groups=[];let group=[];
+    for(const work of works){if(new TextEncoder().encode(JSON.stringify({op:'PLAN_SYNC',works:[...group,work]})).length>12000){groups.push(group);group=[];}group.push(work);}if(group.length)groups.push(group);
+    const plans=[];for(const part of groups){if(!this.connected||this.connectionEpoch!==epoch)throw new Error('連線已變更，請重新同步。');plans.push(validateSyncPlan(await this.command('PLAN_SYNC',{works:part},'smart_sync'),part,device));}
+    if(!plans.length)return {fits:true,needed_bytes:0,free_bytes:0,reserve_bytes:0,existing_works:0,new_works:0,max_works:32,items:[]};
+    const plan={...plans[0],items:plans.flatMap(p=>p.items),needed_bytes:plans.reduce((s,p)=>s+p.needed_bytes,0),new_works:plans.reduce((s,p)=>s+p.new_works,0),free_bytes:Math.min(...plans.map(p=>p.free_bytes)),existing_works:Math.max(...plans.map(p=>p.existing_works))};
+    plan.fits=(!plan.needed_bytes||plan.free_bytes>=plan.needed_bytes+plan.reserve_bytes)&&plan.existing_works+plan.new_works<=32;return plan;
+  }
   async upload(asset,onProgress=()=>{}){
     this.capability('media');if(this.busy)throw new Error('另一個傳送工作還沒完成。');
     const subtitle=asset.kind==='subtitle'?(this.capability('subtitle'),subtitleRuntime(asset.subtitle,asset.frames.length)):undefined;
     this.busy=true;this.cancelRequested=false;this.latestAck=null;
     const bytes=encodeOLA(asset.frames,asset.fps);let transferId;
     try{
-      const begin=await this.request('UPLOAD_BEGIN',{id:asset.id,kind:asset.kind,name:asset.name,length:bytes.length,crc32:crc32(bytes),...(subtitle?{subtitle}:{})});
+      const smart=this.info?.capabilities?.includes('smart_sync')===true,meta=smart?await syncMetadata(asset,bytes):{id:asset.id,kind:asset.kind,name:asset.name,length:bytes.length,crc32:crc32(bytes),...(subtitle?{subtitle}:{})};
+      if(smart)requireSyncCapacity(validateSyncPlan(await this.request('PLAN_SYNC',{works:[meta]}),[meta],this.info.device_id));
+      const begin=await this.request('UPLOAD_BEGIN',{...meta,...(smart?{skip_if_match:true}:{})});
+      if(smart&&begin.skip===true&&begin.verified===true){onProgress(1,bytes.length,bytes.length);return {skipped:true};}
       transferId=begin.transfer_id;let offset=begin.offset;
       if(!Number.isInteger(transferId)||transferId<1||transferId>65535||!Number.isInteger(offset)||offset<0||offset>bytes.length)throw new Error('吊飾上傳狀態錯誤');
       const chunk=this.maxWrite-8,windowSize=Math.max(1,Math.min(8,Number(begin.window_packets)||1));let retries=0;
@@ -195,7 +210,7 @@ export class CompanionBLE extends EventTarget {
         onProgress(offset/bytes.length,offset,bytes.length);
       }
       if(this.cancelRequested)throw new Error('已取消傳送');
-      await this.request('UPLOAD_END',{transfer_id:transferId},30000);onProgress(1,bytes.length,bytes.length);
+      await this.request('UPLOAD_END',{transfer_id:transferId},30000);onProgress(1,bytes.length,bytes.length);return {skipped:false};
     }catch(error){
       if(this.cancelRequested&&this.connected&&transferId){try{await this.request('UPLOAD_CANCEL',{transfer_id:transferId});}catch{}}
       throw error;

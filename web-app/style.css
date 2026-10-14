@@ -34,3 +34,18 @@ input:is(:not([type]),[type=text],[type=password],[type=number],[type=search],[t
 .storage-summary progress{height:8px;margin:12px 0}
 .storage-breakdown{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:11px;line-height:1.7}
 .storage-summary .small{margin-top:9px;font-size:11px}
+
+
+.extras-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:20px}
+.extras-layout>.card{min-width:0}
+.extras-layout h2,.extras-layout h3{margin-bottom:15px}
+.extras-layout .small{margin:12px 0}
+.extras-checks{display:grid;gap:12px;margin:18px 0}
+.extras-fields,.extras-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.extras-fields label,.extras-rules label{min-width:0}
+.extras-layout input,.extras-layout select{min-width:0;max-width:100%}
+.extras-toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;background:#faf8f3f5;padding:12px 0;margin-top:10px}
+.extras-toolbar .button{min-width:0;flex:1;font-size:12px}
+.extras-game-buttons{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+@media(max-width:700px){.extras-layout{grid-template-columns:minmax(0,1fr);gap:16px}}
+@media(max-width:380px){.extras-rules{grid-template-columns:minmax(0,1fr)}.extras-toolbar .button{font-size:11px;padding:11px 9px}}

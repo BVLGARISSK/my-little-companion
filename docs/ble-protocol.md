@@ -136,3 +136,20 @@ DATA header：
 RAM 讀取使用 ESP-IDF 的 `MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT`：`heap_caps_get_total_size()` 回報可動態分配區域總量，`heap_caps_get_info()` 回報當下可用量及最大連續可用區塊。這是執行中的 heap 資料，排除了 Flash、外部 PSRAM 與已分配給程式的靜態區域。來源見 [Espressif 記憶體 API](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32c5/api-reference/system/mem_alloc.html)。
 
 GET_MEMORY 在主迴圈處理，不改播放、亮度、靜止計時或 BLE 上傳閒置窗口。INFO 僅加上能力名稱，RAM 數據走原有可分片的 EVENT 回覆，避免 INFO 超過 512 bytes。網頁在授權後、每 30 秒前景更新、手動更新，以及作品傳送／清單同步／裝置作品刪除後讀取；忙碌時跳過。斷線會清除 RAM 顯示，延遲回覆不會套用到新連線；不支援的韌體顯示更新提示。
+# C5 0.7.0 選用擴充
+
+INFO 的 `extras` 與 `smart_sync` 能力表示下列命令可用。所有命令仍需一般或管理員 HMAC 授權；完整回覆走可分片 EVENT，INFO 保持 GATT 512 bytes 限制。新增能力不改既有 UUID／封包／授權流程。
+
+|命令|欄位及用途|
+|---|---|
+|GET_EXTRAS|只讀取 settings／runtime，不喚醒 OLED、不重設靜止／BLE 窗口|
+|SAVE_EXTRAS|settings：schema version=1；八種規則、姿勢、電壓與省電參數；先完整驗證與 NVS 寫入成功才替換|
+|CALIBRATE_POSE|保持正向不動，記錄重力基準|
+|TOUCH_LOCK|locked：boolean，鎖定／解除短按|
+|SET_TIME|epoch_ms：UTC 毫秒，offset_min：-720～840；已運行計時器保留剩餘時間|
+|CLOCK|enabled：boolean；關閉時恢復原播放，進行中的計時不取消|
+|GAME|game：dice／maze／dodge／none|
+|TIMER|action：start／pause／resume／cancel；start 含 mode=countdown／pomodoro、duration_s 1～86400、focus_s 60～7200、break_s 60～3600、long_break_s 60～7200、rounds 1～8|
+|PLAN_SYNC|works：最多 32 筆含 id／kind／name／length／crc32／sha256／選用 subtitle；只讀取，回 items、needed_bytes、free_bytes、reserve_bytes、existing_works、new_works、max_works、fits、device_id|
+
+UPLOAD_BEGIN 可選 `sha256` 和 `skip_if_match:true`；只有實際檔案 hash 與所有播放描述一致，才回 `skip:true,verified:true`，無 transfer_id、不需 DATA／END。一般上傳含 hash 時，UPLOAD_END 額外驗證 hash；失敗保留舊作品。設定規則引用的作品不能刪除，須先解除綁定。schema 與限制見 [日常玩法](daily-play.md) 及 web-app/js/experience-format.js。

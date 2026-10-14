@@ -24,5 +24,6 @@ export function powerDetails(value){
   if(Number.isInteger(value.deep_wake_count)&&value.deep_wake_count>=0)pieces.push(`深眠喚醒 ${value.deep_wake_count} 次`);
   if(value.motion_interrupt_verified===true)pieces.push('移動中斷已確認');
   else if(value.motion_interrupt_verified===false)pieces.push('移動中斷尚未確認，先使用定時淺眠');
+  for(const [key,label] of [['dim_after_s','調暗'],['screen_off_after_s','關屏'],['deep_after_s','深眠']])if(Number.isInteger(value[key])&&value[key]>=0)pieces.push(value[key]?`${label} ${value[key]} 秒`:`${label}已停用`);
   return pieces.length?pieces.join(' · '):'裝置尚未提供詳細省電資訊。';
 }

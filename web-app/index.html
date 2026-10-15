@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#faf8f3"><meta name="description" content="OLED 吊飾控制與創作工具。預覽表情、編輯照片、繪製像素動畫，再同步播放清單。">
   <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=1.3.5"><title>小伴 · My Little Companion</title>
+  <link rel="stylesheet" href="./style.css?v=1.4.0"><title>小伴 · My Little Companion</title>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -23,6 +23,7 @@
   <a class="brand" href="#" aria-label="小伴首頁"><img src="./assets/companion.svg" alt="" width="42" height="42"><span>小伴<small>my little companion</small></span></a>
   <button id="connect-top" class="button connect"><svg><use href="#i-bluetooth"/></svg><span id="connect-label">連接小夥伴</span><span class="connection-dot" id="connection-dot"></span></button>
 </header>
+<div class="playback-strip" aria-live="polite"><span id="playback-current">尚未連線</span><small id="playback-updated">吊飾目前播放</small><button id="playback-refresh" class="button tiny" disabled>更新播放狀態</button></div>
 <div class="app-shell">
   <nav class="tabs" aria-label="主要功能">
     <button data-tab="emotion" class="tab active" aria-current="page"><svg><use href="#i-face"/></svg><span>表情</span></button>
@@ -125,7 +126,7 @@
           <label>捲動方向<select id="subtitle-direction"><option value="forward">向左／向上</option><option value="reverse">向右／向下</option></select></label>
           <label class="check"><input id="subtitle-face" type="checkbox">表情＋字幕</label>
           <label>搭配表情<select id="subtitle-emotion"><option value="neutral">平靜</option><option value="happy" selected>開心</option><option value="sad">難過</option><option value="surprised">驚訝</option><option value="sleepy">想睡</option><option value="angry">生氣</option></select></label>
-          <label class="check"><input id="subtitle-keep-awake" type="checkbox">播放這個字幕時保持螢幕亮</label><p class="small">未勾選時，靜止 60 秒仍會關屏，移動後接續播放。保持亮屏會增加耗電。</p>
+          <label class="check"><input id="subtitle-keep-awake" type="checkbox">播放這個字幕時保持螢幕亮</label><p class="small">未勾選時，依吊飾「玩法」的關屏時間休眠，移動後接續播放。保持亮屏會增加耗電。</p>
           <div class="button-row wrap"><button id="subtitle-save" class="button sage-button">存成字幕作品</button><button id="subtitle-send" class="button primary">傳送並播放</button><button id="subtitle-save-copy" class="button soft">另存新作品</button></div><p id="subtitle-save-status" class="small" role="status">儲存或傳送會加入作品集；完全相同的字幕會沿用原作品。</p>
           <div class="divider"></div><button id="subtitle-resume-playlist" class="button soft" type="button">回到播放清單</button><p class="small">連線授權後，讓吊飾重新播放最後同步的清單。手機清單有修改時，請先到「播放」同步。</p>
         </div>
@@ -134,7 +135,7 @@
 
     <section id="view-playlist" class="view" hidden>
       <div class="page-heading"><div><p class="eyebrow">YOUR PLAYLIST</p><h1>編排播放清單。</h1><p>設定表情和作品的順序與播放時間。</p></div><button id="playlist-preview" class="button sage-button">▶ 手機預覽</button></div>
-      <div class="card"><div class="playlist-toolbar"><label>播放方式<select id="playlist-mode"><option value="loop">一直循環</option><option value="shuffle">隨機播放</option><option value="once">播放一次</option></select></label><div class="button-row"><select id="playlist-add-select" aria-label="選擇要加入的內容"></select><button id="playlist-add" class="button soft">＋ 加入</button></div></div><div id="playlist-items" class="playlist-items"></div><p id="playlist-empty" class="empty-mini">加入表情或作品，建立播放清單。</p><div class="divider"></div><div class="sync-row"><p class="small">拖曳排序，或用箭頭移動。草稿會自動儲存。</p><button id="sync-playlist" class="button primary"><svg><use href="#i-bluetooth"/></svg>同步給小伴</button></div></div>
+      <div class="card"><div class="button-row wrap"><button id="playlist-read" class="button soft" disabled>讀取吊飾清單</button><button id="playlist-undo-read" class="button tiny">還原讀取前草稿</button><button id="playlist-clear" class="button tiny">清空手機清單</button></div><p id="playlist-device-help" class="small">讀回清單需要新版 C5。</p><p id="playlist-draft-status" role="status">手機清單草稿</p><div class="playlist-toolbar"><label>播放方式<select id="playlist-mode"><option value="loop">一直循環</option><option value="shuffle">隨機播放</option><option value="once">播放一次</option></select></label><div class="button-row"><select id="playlist-add-select" aria-label="選擇要加入的內容"></select><button id="playlist-add" class="button soft">＋ 加入</button></div></div><div id="playlist-items" class="playlist-items"></div><p id="playlist-empty" class="empty-mini">加入表情或作品，建立播放清單。</p><div class="divider"></div><div class="sync-row"><p class="small">拖曳排序，或用箭頭移動。草稿會自動儲存。</p><button id="sync-playlist" class="button primary"><svg><use href="#i-bluetooth"/></svg>同步給小伴</button></div></div>
       <div id="playlist-preview-card" class="card playlist-preview-card" hidden><div class="section-title"><h3 id="playlist-preview-name">手機預覽</h3><button id="playlist-preview-stop" class="button tiny">停止</button></div><canvas id="playlist-canvas" class="oled-preview" width="512" height="256" aria-label="播放清單預覽"></canvas></div>
     </section>
 
@@ -146,8 +147,8 @@
       <p id="extras-draft-state" class="small"></p><p id="extras-error" class="browser-help" role="alert" hidden></p>
       <p id="extras-runtime" class="small">連線並授權後，讀取吊飾目前狀態。</p>
       <div class="extras-layout">
-        <div class="card"><h2>動作與觸摸</h2><div class="extras-checks"><label class="check"><input id="extras-tilt_enabled" type="checkbox">眼神跟著傾斜</label><label class="check"><input id="extras-greeting_enabled" type="checkbox">拿起時打招呼</label><label class="check"><input id="extras-auto_rotate" type="checkbox">倒拿時自動轉正（需正向校正）</label><label class="check"><input id="extras-lock_on_boot" type="checkbox">開機時鎖定短按</label><label class="check"><input id="extras-interrupt_media" type="checkbox">允許播放作品時插播動作互動</label></div>
-          <p class="small">預設：單擊切表情，雙擊下一個作品，三擊上一個。長按 2 秒開放藍牙，繼續按到 4 秒可鎖定／解鎖。熄屏時第一下只喚醒，亮屏後再多擊。</p>
+        <div class="card"><h2>動作與觸摸</h2><div class="extras-checks"><label class="check"><input id="extras-tilt_enabled" type="checkbox">眼神跟著傾斜</label><label class="check"><input id="extras-greeting_enabled" type="checkbox">拿起時打招呼</label><label class="check"><input id="extras-auto_rotate" type="checkbox">倒拿時自動轉正（0.7.7 起關閉後固定正向）</label><label class="check"><input id="extras-lock_on_boot" type="checkbox">開機時鎖定短按</label><label class="check"><input id="extras-interrupt_media" type="checkbox">允許播放作品時插播動作互動</label></div>
+          <p class="small" id="touch-help">預設：單擊切表情，雙擊下一個作品，三擊上一個。長按 2 秒開放藍牙，繼續按到 4 秒可鎖定／解鎖。熄屏時第一下只喚醒，亮屏後再多擊。</p>
           <p id="extras-lock-label" class="small"></p><div class="button-row wrap"><button id="extras-lock" class="button soft" data-extra-action>鎖定短按</button><button id="extras-unlock" class="button soft" data-extra-action>解鎖短按</button></div>
           <div class="divider"></div><h3>安裝方向與靈敏度</h3><div class="extras-fields"><label>左右感測軸<select id="extras-axis_x"><option value="0">X 軸</option><option value="1">Y 軸</option><option value="2">Z 軸</option></select></label><label>上下感測軸<select id="extras-axis_y"><option value="0">X 軸</option><option value="1">Y 軸</option><option value="2">Z 軸</option></select></label><label>左右方向<select id="extras-sign_x"><option value="1">原方向</option><option value="-1">反向</option></select></label><label>上下方向<select id="extras-sign_y"><option value="1">原方向</option><option value="-1">反向</option></select></label><label>傾斜幅度（越小越靈敏）<input id="extras-sensitivity" type="number" min="0.1" max="1" step="0.05"></label></div>
           <p id="extras-calibration-state" class="small"></p><button id="extras-calibrate" class="button soft" data-extra-action>正向校正</button>
@@ -222,10 +223,10 @@
     </section>
   </main>
 </div>
-<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.3.5</span></footer>
+<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.4.0</span></footer>
 <div id="transfer-panel" class="transfer-panel" hidden><div class="section-title"><strong id="transfer-label">正在傳送作品…</strong><button id="cancel-transfer" class="button tiny">取消</button></div><progress id="transfer-progress" max="1" value="0"></progress><p id="transfer-detail" class="small"></p></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
 <dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
-<script type="module" src="./app.js?v=1.3.5"></script>
+<script type="module" src="./app.js?v=1.4.0"></script>
 </body></html>

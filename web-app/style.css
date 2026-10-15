@@ -51,3 +51,5 @@ input:is(:not([type]),[type=text],[type=password],[type=number],[type=search],[t
 @media(max-width:380px){.extras-rules{grid-template-columns:minmax(0,1fr)}.extras-toolbar .button{font-size:11px;padding:11px 9px}}
 
 .site-footer{align-items:center;gap:16px}.site-footer>a{font-size:12px;min-height:44px;display:inline-flex;align-items:center;color:#68775c;text-underline-offset:4px}
+
+.playback-strip{max-width:1120px;margin:0 auto;padding:8px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:13px}.playback-strip small{color:var(--muted,#747b70)}.playback-strip>span{flex:1 1 180px;overflow-wrap:anywhere}#playlist-draft-status{font-size:13px;color:#54634c}

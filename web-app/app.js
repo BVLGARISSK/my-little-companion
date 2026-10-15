@@ -1,18 +1,19 @@
-import {setupExperience} from './js/experience-ui.js?v=1.3.5';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.5';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.5';
+import {supportsPlaylistRead,animationFrameIndex,catalogItems,playlistResponse,playlistKey,playlistDifference,playbackLabel} from './js/playlist-device.js?v=1.4.0';
+import {setupExperience} from './js/experience-ui.js?v=1.4.0';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.4.0';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.4.0';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.3.5';
+import {validatePlaylist} from './js/protocol.js?v=1.4.0';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.5';
-import {CompanionBLE} from './js/ble.js?v=1.3.5';
-import {batteryLabel} from './js/battery.js?v=1.3.5';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.5';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.4.0';
+import {CompanionBLE} from './js/ble.js?v=1.4.0';
+import {batteryLabel} from './js/battery.js?v=1.4.0';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.4.0';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.5';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.4.0';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.5';
-import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.3.5';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.4.0';
+import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.4.0';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -22,8 +23,9 @@ let state={version:1,assets:[],playlist:{version:1,name:'My little day',mode:'lo
 let undo=[],redo=[],tool='pen',drawing=false,lastPoint=null,dragIndex=null;
 let subtitlePreview=null,subtitleStarted=0,subtitleTimer,subtitlePositionVersion=2;
 let experienceUI;
+let playlistReading=false,playbackReading=false;
 const converter=new MediaConverter($('source-video'));
-const nameOf=item=>item.type==='emotion'?EMOTIONS.find(e=>e.id===item.id)?.name:state.assets.find(a=>a.id===item.id)?.name;
+const nameOf=item=>item.type==='emotion'?EMOTIONS.find(e=>e.id===item.id)?.name:playlistAssets().find(a=>a.id===item.id)?.name;
 const formatBytes=n=>Number.isFinite(n)?n>=1048576?(n/1048576).toFixed(2)+' MiB':(n/1024).toFixed(1)+' KiB':'—';
 function toast(message,error=false){$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,error?7000:3500);}
 function bind(id,fn,event='click'){$(id).addEventListener(event,async e=>{try{await fn(e);}catch(error){toast(error.name==='NotFoundError'?'已取消尋找小伴，可以稍後再連線。':error.name==='SecurityError'?'瀏覽器沒有允許藍牙連線，請用 Bluefy 開啟 HTTPS 網址。':error.message||'這次沒有完成，再試一次。',error.name!=='NotFoundError');}});}
@@ -251,24 +253,26 @@ bind('animation-play',()=>{if(!animation)throw new Error('先把影片轉成小�
 bind('save-animation',()=>{if(!animation)throw new Error('先轉換動畫吧。');addAsset($('animation-name').value,animation.frames,animation.fps);});
 
 // Playlist editing and local preview.
-function addPlaylistItem(type,id){if(state.playlist.items.length>=64)throw new Error('播放清單最多 64 個項目。');let duration=type==='animation'?8000:5000;const caption=state.assets.find(a=>a.id===id)?.subtitle;if(type==='subtitle'&&caption&&caption.motion!=='fixed'){const size=caption.motion==='horizontal'?caption.width+128:caption.height+caption.viewport_h;duration=Math.min(600000,Math.max(1000,Math.ceil((size+16)*1000/caption.speed)));}state.playlist.items.push({type,id,duration_ms:duration,repeat:true,enabled:true});persist();renderPlaylist();toast('已加入小伴的播放清單。');}
+function addPlaylistItem(type,id){if(state.playlist.items.length>=64)throw new Error('播放清單最多 64 個項目。');let duration=type==='animation'?8000:5000;const caption=state.assets.find(a=>a.id===id)?.subtitle;if(type==='subtitle'&&caption&&caption.motion!=='fixed'){const size=caption.motion==='horizontal'?caption.width+128:caption.height+caption.viewport_h;duration=Math.min(600000,Math.max(1000,Math.ceil((size+16)*1000/caption.speed)));}state.playlist.items.push({type,id,duration_ms:duration,repeat:true,enabled:true});persist();renderPlaylist();toast('已加入手機清單草稿；同步後才會更新吊飾。');}
+function playlistAssets(){const all=new Map((state.playlistRefs||[]).map(a=>[a.id,a]));for(const a of state.assets)all.set(a.id,a);return [...all.values()];}
 function renderPlaylist(){
+  renderPlaylistStatus();
   $('playlist-mode').value=state.playlist.mode;const select=$('playlist-add-select');select.replaceChildren();
-  for(const emotion of EMOTIONS){const o=new Option('表情 · '+emotion.name,'emotion:'+emotion.id);select.add(o);}for(const asset of state.assets)select.add(new Option(asset.name,asset.kind+':'+asset.id));
+  for(const emotion of EMOTIONS){const o=new Option('表情 · '+emotion.name,'emotion:'+emotion.id);select.add(o);}for(const asset of playlistAssets())select.add(new Option(asset.name+(state.assets.some(a=>a.id===asset.id)?'':' · 僅在吊飾'),asset.kind+':'+asset.id));
   const list=$('playlist-items');list.replaceChildren();$('playlist-empty').hidden=state.playlist.items.length>0;
   state.playlist.items.forEach((item,i)=>{
     const row=document.createElement('div');row.className='playlist-item'+(!item.enabled?' disabled':'');row.draggable=true;
     const handle=document.createElement('span');handle.className='drag-handle';handle.textContent='⠿';handle.setAttribute('aria-hidden','true');
     const c=document.createElement('canvas');c.width=136;c.height=68;c.className='playlist-thumb';const asset=state.assets.find(a=>a.id===item.id);drawFrame(c,item.type==='emotion'?emotionFrame(item.id,0,true):asset?.kind==='subtitle'?subtitleThumbnail(asset):asset?.frames[0]||new Uint8Array(FRAME_BYTES));
     const title=document.createElement('span');title.className='playlist-title';title.textContent=nameOf(item)||'找不到的作品';
-    const duration=document.createElement('label');duration.className='duration-label';const input=document.createElement('input');input.type='number';input.min='1';input.max='600';input.step='1';input.value=item.duration_ms/1000;input.setAttribute('aria-label',(nameOf(item)||'內容')+'播放秒數');input.onchange=()=>{item.duration_ms=Math.max(1,Math.min(600,Math.round(Number(input.value)||5)))*1000;input.value=item.duration_ms/1000;persist();};duration.append(input,document.createTextNode('秒'));
+    const duration=document.createElement('label');duration.className='duration-label';const input=document.createElement('input');input.type='number';input.min='1';input.max='600';input.step='1';input.value=item.duration_ms/1000;input.setAttribute('aria-label',(nameOf(item)||'內容')+'播放秒數');input.onchange=()=>{item.duration_ms=Math.max(1,Math.min(600,Math.round(Number(input.value)||5)))*1000;input.value=item.duration_ms/1000;persist();renderPlaylistStatus();};duration.append(input,document.createTextNode('秒'));
     const actions=document.createElement('div');actions.className='button-row';const enable=document.createElement('input');enable.type='checkbox';enable.checked=item.enabled;enable.setAttribute('aria-label',(nameOf(item)||'內容')+'啟用');enable.onchange=()=>{item.enabled=enable.checked;persist();renderPlaylist();};
     const move=d=>{const j=i+d;if(j<0||j>=state.playlist.items.length)return;[state.playlist.items[i],state.playlist.items[j]]=[state.playlist.items[j],state.playlist.items[i]];persist();renderPlaylist();};
     actions.append(enable,button('↑',()=>move(-1)),button('↓',()=>move(1)),button('移除',()=>{state.playlist.items.splice(i,1);persist();renderPlaylist();}));
-    row.append(handle,c,title,duration,actions);row.addEventListener('dragstart',e=>{dragIndex=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i));row.classList.add('dragging');});row.addEventListener('dragend',()=>{dragIndex=null;row.classList.remove('dragging');});row.addEventListener('dragover',e=>e.preventDefault());row.addEventListener('drop',e=>{e.preventDefault();if(dragIndex===null||dragIndex===i)return;const [moving]=state.playlist.items.splice(dragIndex,1);state.playlist.items.splice(i,0,moving);dragIndex=null;persist();renderPlaylist();});list.append(row);
+    if(!asset&&item.type!=='emotion')title.textContent+=' · 僅在吊飾（手機無預覽）';row.append(handle,c,title,duration,actions);row.addEventListener('dragstart',e=>{dragIndex=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i));row.classList.add('dragging');});row.addEventListener('dragend',()=>{dragIndex=null;row.classList.remove('dragging');});row.addEventListener('dragover',e=>e.preventDefault());row.addEventListener('drop',e=>{e.preventDefault();if(dragIndex===null||dragIndex===i)return;const [moving]=state.playlist.items.splice(dragIndex,1);state.playlist.items.splice(i,0,moving);dragIndex=null;persist();renderPlaylist();});list.append(row);
   });
 }
-bind('playlist-add',()=>{const[type,id]=$('playlist-add-select').value.split(':');addPlaylistItem(type,id);});bind('playlist-mode',e=>{state.playlist.mode=e.target.value;persist();},'change');
+bind('playlist-add',()=>{const[type,id]=$('playlist-add-select').value.split(':');addPlaylistItem(type,id);});bind('playlist-mode',e=>{state.playlist.mode=e.target.value;persist();renderPlaylistStatus();},'change');
 bind('playlist-preview',()=>{if(!state.playlist.items.some(i=>i.enabled))throw new Error('先啟用至少一個清單項目吧。');previewRunning=true;playlistIndex=0;playlistStarted=performance.now();playlistFrameStarted=playlistStarted;$('playlist-preview-card').hidden=false;$('playlist-preview-card').scrollIntoView({behavior:'smooth',block:'center'});});bind('playlist-preview-stop',()=>{previewRunning=false;$('playlist-preview-card').hidden=true;});
 
 // BLE controls use real GATT. No simulated success, battery or storage figures.
@@ -416,7 +420,7 @@ async function authorize(){
     const memoryMessage=remembered?'已記住這台吊飾，下次在同一個瀏覽器按「尋找小夥伴」即可，不用再掃碼。':memoryFailed||remember&&!storeReady?'瀏覽器暫時無法更新授權碼記憶，下次請重新掃描小卡。':'下次使用時，請重新掃描小卡。';
     $('pairing-message').textContent=roleMessage+memoryMessage;
     $('auth-key').value='';toast(remembered?'已授權，並記住這台吊飾。':memoryFailed||remember&&!storeReady?'已授權，暫時無法記住授權碼。':roleMessage);
-    await checkPendingReset();await refreshPowerState().catch(()=>{});await ble.refreshMemory().catch(()=>{});await experienceUI?.authorized().catch(e=>toast(e.message,true));
+    await checkPendingReset();await refreshPowerState().catch(()=>{});await ble.refreshMemory().catch(()=>{});await experienceUI?.authorized().catch(e=>toast(e.message,true));await refreshPlayback().catch(()=>{});
   }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
 }
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
@@ -424,12 +428,12 @@ ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
   $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';renderStorageInfo(info);renderRamInfo(info);$('info-firmware').textContent=info?.firmware||'—';
   $('info-usb').textContent=usbHostLabel(info);$('info-charging').textContent=chargingLabel(info);$('power-note').hidden=!connected;
-  $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected)$('remote-library').replaceChildren();
+  $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected){$('remote-library').replaceChildren();$('playback-current').textContent='尚未連線';}renderPlaylistStatus();
   if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();updatePowerControls();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
 async function refreshBatteryInfo(){
   if(document.hidden||!ble.authorized)return;
-  try{await ble.refreshInfo();await refreshPowerState();await ble.refreshMemory();await experienceUI?.refresh();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
+  try{await ble.refreshInfo();await refreshPowerState();await ble.refreshMemory();await experienceUI?.refresh();await refreshPlayback();}catch{/* A temporary radio error keeps the last reading until the next refresh. */}
 }
 setInterval(refreshBatteryInfo,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshBatteryInfo();});
@@ -461,31 +465,96 @@ let playlistReturning=false;
 async function resumePlaylist(){
   if(playlistReturning||syncing||resetBusy||ble.busy)throw new Error('請等目前的作品傳送或裝置操作完成。');
   playlistReturning=true;for(const id of ['resume-playlist','subtitle-resume-playlist'])$(id).disabled=true;
-  try{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('吊飾已回到播放清單，依原播放方式重新開始。');}
+  try{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('吊飾已回到播放清單，依原播放方式重新開始。');await refreshPlayback();}
   catch(error){if(error.code==='PLAYLIST')throw new Error('吊飾尚無可播放的清單項目，請先到「播放」加入啟用項目並同步。');throw error;}
-  finally{playlistReturning=false;for(const id of ['resume-playlist','subtitle-resume-playlist'])$(id).disabled=false;}
+  finally{playlistReturning=false;renderPlaylistStatus();}
 }
 bind('resume-playlist',resumePlaylist);bind('subtitle-resume-playlist',resumePlaylist);
 let syncing=false;
 function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=p;$('transfer-detail').textContent=detail;}
 async function transferAsset(asset){
   if(syncing)throw new Error('正在同步，請等這次傳送完成。');
-  syncing=true;updateAdminTools();progressPanel(`傳送「${asset.name}」`,0,'正在準備…');
-  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;updateAdminTools();$('transfer-panel').hidden=true;await refreshStorageAfterChange();}
+  syncing=true;updateAdminTools();renderPlaylistStatus();progressPanel(`傳送「${asset.name}」`,0,'正在準備…');
+  try{await ble.upload(asset,(p,sent,total)=>progressPanel(`傳送「${asset.name}」`,p,`${formatBytes(sent)} / ${formatBytes(total)}`));toast('作品已存進吊飾，手機可以斷線了。');}finally{syncing=false;updateAdminTools();renderPlaylistStatus();$('transfer-panel').hidden=true;await refreshStorageAfterChange();}
 }
 bind('cancel-transfer',()=>ble.cancel());
+// Device playlist references are metadata only; they never masquerade as local editable files.
+
+function renderPlaylistStatus(){
+  const ready=ble.connected&&ble.authorized,readable=ready&&supportsPlaylistRead(ble.info);
+  $('playlist-read').disabled=!readable||playlistReading||syncing||ble.busy;
+  $('playback-refresh').disabled=!readable||playbackReading||syncing||ble.busy;
+  $('playlist-device-help').textContent=readable?'可讀回吊飾的順序、秒數及既有作品；作品檔案仍留在吊飾。':'讀回清單與目前播放狀態需要 C5 0.7.7 以上，並完成連線授權。';
+  const match=state.playlistSynced?.deviceId===ble.info?.device_id&&state.playlistSynced?.key===playlistKey(state.playlist);
+  $('playlist-draft-status').textContent=match&&ready?'這份草稿與上次讀取／同步的清單相同；同步前仍會核對吊飾。':'手機清單草稿 · 尚未確認與吊飾相同';
+  $('playlist-undo-read').disabled=!state.playlistUndo||playlistReading||syncing;
+  for(const id of ['sync-playlist','brightness-apply','resume-playlist','subtitle-resume-playlist','refresh-remote','subtitle-send','emotion-apply'])$(id).disabled=!ready||syncing||resetBusy||ble.busy||playlistReading||playlistReturning;
+}
+function assertConnection(epoch,id){if(!ble.connected||!ble.authorized||ble.connectionEpoch!==epoch||ble.info?.device_id!==id)throw new Error('連線已改變，請重新操作。');}
+async function readDevicePlaylist(){
+  const epoch=ble.connectionEpoch,id=ble.info?.device_id;
+  const listing=await ble.command('LIST_MEDIA',{},'media');assertConnection(epoch,id);
+  const catalog=catalogItems(listing.items,id),raw=await ble.command('GET_PLAYLIST',{},'playlist');assertConnection(epoch,id);
+  return {...playlistResponse(raw,catalog,id),catalog,deviceId:id,epoch};
+}
+async function refreshPlayback(){
+  if(document.hidden||!ble.connected||!ble.authorized||!supportsPlaylistRead(ble.info)||playbackReading||playlistReading||syncing||resetBusy||ble.busy||ble.pending.size)return;
+  const epoch=ble.connectionEpoch,id=ble.info.device_id;playbackReading=true;
+  try{const value=await ble.command('GET_PLAYBACK',{},'playlist');assertConnection(epoch,id);if(value.device_id!==id)throw new Error('播放狀態來自其他裝置。');$('playback-current').textContent=playbackLabel(value,playlistAssets());$('playback-updated').textContent='剛剛更新 · 約每 5 秒讀取';}
+  catch(error){if(ble.connectionEpoch===epoch){$('playback-updated').textContent='狀態可能已變更，請按更新重試';}throw error;}
+  finally{playbackReading=false;renderPlaylistStatus();}
+}
+bind('playback-refresh',refreshPlayback);setInterval(()=>refreshPlayback().catch(()=>{}),5000);
+bind('playlist-read',async()=>{
+  if(syncing||playlistReading||ble.busy||resetBusy)throw new Error('請等目前操作完成。');
+  if(!supportsPlaylistRead(ble.info))throw new Error('請先更新 C5 至 0.7.7。');
+  playlistReading=true;renderPlaylistStatus();
+  try{const before=playlistKey(state.playlist),result=await readDevicePlaylist();
+    if(before!==playlistKey(result.playlist)&&!await confirmAction('讀取吊飾清單到手機？','將取代目前手機的清單草稿。手機作品仍保留；替換後可按「還原讀取前草稿」。','讀取並取代'))return;
+    assertConnection(result.epoch,result.deviceId);if(before!==playlistKey(state.playlist))throw new Error('確認期間草稿已修改，請重新讀取。');
+    state.playlistUndo={playlist:structuredClone(state.playlist),refs:state.playlistRefs||[],deviceId:state.playlistDevice||null};
+    state.playlist=result.playlist;state.playlistRefs=result.catalog;state.playlistDevice=result.deviceId;state.playlistSynced={deviceId:result.deviceId,key:playlistKey(state.playlist)};
+    persist(true);renderPlaylist();toast('已讀回吊飾清單；裝置作品可排序與移除，不需重新上傳。');await refreshPlayback();
+  }finally{playlistReading=false;renderPlaylistStatus();}
+});
+bind('playlist-undo-read',()=>{const old=state.playlistUndo;if(!old)throw new Error('目前沒有可還原的讀取前草稿。');state.playlist=old.playlist;state.playlistRefs=old.refs;state.playlistDevice=old.deviceId;state.playlistUndo=null;state.playlistSynced=null;persist(true);renderPlaylist();toast('已還原手機草稿，吊飾沒有改變。');});
+bind('playlist-clear',async()=>{if(!await confirmAction('清空手機清單草稿？','只清空手機編排。之後按「同步給小伴」並確認，吊飾才會清空清單並回到表情。作品不會被刪除。','清空草稿'))return;state.playlist.items=[];persist(true);renderPlaylist();});
 bind('sync-playlist',async()=>{
-  ble.capability('playlist');if(syncing||ble.busy||resetBusy)throw new Error('正在同步或恢復出廠，請等這次完成。');
-  validatePlaylist(state.playlist,state.assets);if(!state.playlist.items.some(i=>i.enabled))throw new Error('先啟用至少一個清單項目吧。');
-  const snapshot=structuredClone(state),assets=snapshot.assets.filter(a=>snapshot.playlist.items.some(i=>i.type!=='emotion'&&i.id===a.id));if(assets.length)ble.capability('media');syncing=true;updateAdminTools();$('sync-playlist').disabled=true;ble.cancelRequested=false;
-  try{if(ble.info.capabilities.includes('smart_sync'))requireSyncCapacity(await ble.planSync(assets));for(let i=0;i<assets.length;i++){if(ble.cancelRequested)throw new Error('已取消同步');await ble.upload(assets[i],(p,sent,total)=>progressPanel(`同步作品 ${i+1} / ${assets.length}`,(i+p)/(assets.length+1),`${assets[i].name} · ${formatBytes(sent)} / ${formatBytes(total)}`));}
-    if(ble.cancelRequested)throw new Error('已取消同步');progressPanel('儲存播放清單',.95,'作品傳送完成，正在確認清單…');await ble.request('SET_PLAYLIST',{playlist:snapshot.playlist},30000);toast('清單和作品都同步好了。');
-  }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;await refreshStorageAfterChange();}
+  ble.capability('playlist');if(syncing||playlistReading||ble.busy||resetBusy)throw new Error('請等目前的同步或裝置操作完成。');
+  const snapshot=structuredClone(state),epoch=ble.connectionEpoch,id=ble.info.device_id;
+  validatePlaylist(snapshot.playlist,[...snapshot.assets,...(snapshot.playlistRefs||[])]);
+  if(snapshot.playlist.items.length&&!snapshot.playlist.items.some(i=>i.enabled))throw new Error('請啟用至少一項，或清空清單回到表情。');
+  syncing=true;updateAdminTools();renderPlaylistStatus();$('sync-playlist').disabled=true;ble.cancelRequested=false;
+  try{
+    let expected_revision,remote;
+    if(supportsPlaylistRead(ble.info)){
+      remote=await readDevicePlaylist();expected_revision=remote.revision;
+      const localIds=new Set(snapshot.assets.map(a=>a.id)),missing=snapshot.playlist.items.filter(i=>i.type!=='emotion'&&!localIds.has(i.id));
+      if(missing.length&&snapshot.playlistDevice!==id)throw new Error('這份草稿包含另一台吊飾的作品。請先讀取目前吊飾清單，或匯入完整作品備份。');
+      for(const item of missing)if(!remote.catalog.some(a=>a.id===item.id&&a.kind===item.type))throw new Error('吊飾上的作品已刪除或變更，請重新讀取清單。');
+      const diff=playlistDifference(remote.playlist,snapshot.playlist);
+      const detail=snapshot.playlist.items.length?`吊飾目前 ${remote.playlist.items.length} 項，更新後 ${snapshot.playlist.items.length} 項；新增 ${diff.added} 項、移除 ${diff.removed} 項。${diff.changed?'順序、秒數、啟用狀態與播放方式將依手機草稿更新。':'清單相同；仍會核對並更新作品內容。'}同步後會重新開始播放。作品檔案不會因移除清單項目而被刪除。`:'會清空吊飾播放清單並回到自動表情。照片、動畫、字幕與授權碼都會保留。';
+      if(!await confirmAction('確認同步到吊飾？',detail,'同步並播放'))return;
+    }else{
+      if(!snapshot.playlist.items.length)throw new Error('清空吊飾清單需要 C5 0.7.7 以上。');
+      if(snapshot.playlist.items.some(i=>i.type!=='emotion'&&!snapshot.assets.some(a=>a.id===i.id)))throw new Error('舊版韌體請使用具有完整作品的手機同步。');
+      if(!await confirmAction('取代吊飾播放清單？','此韌體無法讀回比較。同步會以目前手機草稿取代整份吊飾清單，並重新播放。','同步並播放'))return;
+    }
+    assertConnection(epoch,id);
+    const assets=snapshot.assets.filter(a=>snapshot.playlist.items.some(i=>i.type!=='emotion'&&i.id===a.id));
+    if(assets.length)ble.capability('media');
+    if(ble.info.capabilities.includes('smart_sync'))requireSyncCapacity(await ble.planSync(assets));
+    for(let i=0;i<assets.length;i++){assertConnection(epoch,id);if(ble.cancelRequested)throw new Error('已取消同步');await ble.upload(assets[i],(p,sent,total)=>progressPanel(`同步作品 ${i+1} / ${assets.length}`,(i+p)/(assets.length+1),`${assets[i].name} · ${formatBytes(sent)} / ${formatBytes(total)}`));}
+    assertConnection(epoch,id);if(ble.cancelRequested)throw new Error('已取消同步');progressPanel('儲存播放清單',.95,'正在確認清單…');
+    const result=await ble.request('SET_PLAYLIST',{playlist:snapshot.playlist,...(expected_revision===undefined?{}:{expected_revision})},30000);assertConnection(epoch,id);
+    state.playlistSynced={deviceId:id,key:playlistKey(snapshot.playlist)};persist(true);
+    toast(result.started===false?'清單已儲存，但暫時無法開始播放，請檢查 RAM 與作品。':snapshot.playlist.items.length?'清單已同步並重新開始播放。':'吊飾清單已清空，已回到自動表情。',result.started===false);
+  }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;renderPlaylistStatus();await refreshStorageAfterChange();await refreshPlayback().catch(()=>{});}
 });
 bind('refresh-remote',async()=>{
   const result=await ble.command('LIST_MEDIA',{},'media');const list=$('remote-library');list.replaceChildren();
   if(!Array.isArray(result.items))throw new Error('吊飾的作品清單格式錯誤');
-  for(const item of result.items){if(!/^[a-f0-9]{32}$/.test(item.id))continue;const row=document.createElement('div');row.className='remote-item';const name=document.createElement('span');name.textContent=item.name||item.id;const actions=document.createElement('div');actions.className='button-row';actions.append(button('播放',async()=>{await ble.command('PLAY_MEDIA',{id:item.id},'media');toast('小伴開始播放這個作品。');}),button('刪除',async()=>{if(!await confirmAction('刪除吊飾上的作品？',`會永久刪除吊飾上的「${item.name||item.id}」。如果被播放清單使用，吊飾應拒絕刪除。`))return;await ble.command('DELETE_MEDIA',{id:item.id},'media');row.remove();toast('已從吊飾移除。');await refreshStorageAfterChange();}));row.append(name,actions);list.append(row);}
+  for(const item of result.items){if(!/^[a-f0-9]{32}$/.test(item.id))continue;const row=document.createElement('div');row.className='remote-item';const name=document.createElement('span');name.textContent=item.name||item.id;const actions=document.createElement('div');actions.className='button-row';actions.append(button('播放',async()=>{await ble.command('PLAY_MEDIA',{id:item.id},'media');toast('小伴開始播放這個作品。');}),button('刪除',async()=>{if(!await confirmAction('刪除吊飾上的作品？',`會永久刪除吊飾上的「${item.name||item.id}」。若清單或動作規則仍在使用，請先解除引用並同步／套用，再刪除。`))return;try{await ble.command('DELETE_MEDIA',{id:item.id},'media');}catch(error){if(error.code==='REFERENCED')throw new Error('作品仍被使用：先到「播放」讀取吊飾清單、移除該項並同步；若仍無法刪除，再到「玩法」解除作品綁定並套用。');throw error;}row.remove();toast('已從吊飾移除。');await refreshStorageAfterChange();}));row.append(name,actions);list.append(row);}
   if(!result.items.length)list.textContent='吊飾裡還沒有作品。';
 });
 
@@ -497,10 +566,10 @@ bind('export-backup',()=>{
 bind('backup-file',async e=>{
   const file=e.target.files[0];e.target.value='';if(!file)return;if(file.size>30*1024*1024)throw new Error('備份檔太大，請選 30MB 以下的檔案。');
   const data=JSON.parse(await file.text());if(data.version!==1||!Array.isArray(data.assets)||data.assets.length>500)throw new Error('這不是支援的小伴備份。');
-  const incoming=data.assets.map(validateAsset);if(new Set(incoming.map(a=>a.id)).size!==incoming.length)throw new Error('備份裡有重複作品 ID');if(state.assets.length+incoming.length>500)throw new Error('匯入後會超過 500 個作品，請先備份並整理作品集。');validatePlaylist(data.playlist,incoming);
+  const incoming=data.assets.map(validateAsset);if(new Set(incoming.map(a=>a.id)).size!==incoming.length)throw new Error('備份裡有重複作品 ID');if(state.assets.length+incoming.length>500)throw new Error('匯入後會超過 500 個作品，請先備份並整理作品集。');const incomingRefs=catalogItems(data.playlistRefs||[],data.playlistDevice||'');validatePlaylist(data.playlist,[...incoming,...incomingRefs]);
   if(!await confirmAction('匯入這份小伴備份？','現有作品會保留，播放清單會換成備份裡的清單。畫板草稿會保留。','匯入備份'))return;
   const remap=new Map();for(const asset of incoming){const exists=state.assets.find(a=>a.id===asset.id);if(exists){const oldId=asset.id;asset.id=newId();remap.set(oldId,asset.id);}state.assets.push(asset);}
-  state.playlist={...data.playlist,items:data.playlist.items.map(i=>({...i,id:remap.get(i.id)||i.id}))};persist(true);renderLibrary();renderPlaylist();toast('備份已匯入，原本的作品也保留了。');
+  state.playlistRefs=incomingRefs;state.playlistDevice=data.playlistDevice||null;state.playlistSynced=null;state.playlist={...data.playlist,items:data.playlist.items.map(i=>({...i,id:remap.get(i.id)||i.id}))};persist(true);renderLibrary();renderPlaylist();toast('備份已匯入，原本的作品也保留了。');
 },'change');
 
 // One render scheduler owns the previews, and pauses hidden-page animation work.
@@ -516,22 +585,22 @@ function tick(time){
     if(activeTab==='playlist'&&previewRunning){
       const items=state.playlist.items.filter(i=>i.enabled);if(!items.length)previewRunning=false;
       else{if(playlistIndex>=items.length)playlistIndex=0;let item=items[playlistIndex];if(time-playlistStarted>=item.duration_ms){if(state.playlist.mode==='once'&&playlistIndex===items.length-1)previewRunning=false;else{playlistIndex=state.playlist.mode==='shuffle'?Math.floor(Math.random()*items.length):(playlistIndex+1)%items.length;playlistStarted=time;playlistFrameStarted=time;item=items[playlistIndex];}}
-        $('playlist-preview-name').textContent=`手機預覽 · ${nameOf(item)||'內容'}`;const asset=state.assets.find(a=>a.id===item.id);drawFrame($('playlist-canvas'),item.type==='emotion'?emotionFrame(item.id,time):asset?.kind==='subtitle'?subtitleFrame(asset,time-playlistFrameStarted,time,item.repeat!==false):asset?asset.frames[Math.floor((time-playlistFrameStarted)/1000*asset.fps)%asset.frames.length]:new Uint8Array(FRAME_BYTES));}
+        $('playlist-preview-name').textContent=`手機預覽 · ${nameOf(item)||'內容'}`;const asset=state.assets.find(a=>a.id===item.id);drawFrame($('playlist-canvas'),item.type==='emotion'?emotionFrame(item.id,time):asset?.kind==='subtitle'?subtitleFrame(asset,time-playlistFrameStarted,time,item.repeat!==false):asset?asset.frames[animationFrameIndex(time-playlistFrameStarted,asset.fps,asset.frames.length,item.repeat)]:new Uint8Array(FRAME_BYTES));}
     }
   }
   requestAnimationFrame(tick);
 }
-experienceUI=setupExperience({ble,toast,getAssets:()=>state.assets,getDraft:()=>state.extrasDraft,onDraft:value=>{state.extrasDraft=value;persist();},transferAsset,isBusy:()=>syncing||resetBusy});
+experienceUI=setupExperience({ble,toast,getAssets:()=>state.assets,getDraft:()=>state.extrasDraft,getDraftMeta:()=>state.extrasDraftMeta,onDraft:(value,meta)=>{state.extrasDraft=value;state.extrasDraftMeta=meta;persist();},confirmAction,transferAsset,isBusy:()=>syncing||resetBusy});
 renderLibrary();renderPlaylist();renderPixel();drawFrame($('face-canvas'),emotionFrame(mood,0));requestAnimationFrame(tick);
 try{
   await store.init();const saved=await store.get('workspace');
   if(saved?.version===1){
-    const assets=saved.assets.map(a=>validateAsset({...a,frames:a.frames.map(f=>Array.from(f))}));validatePlaylist(saved.playlist,assets);
+    const assets=saved.assets.map(a=>validateAsset({...a,frames:a.frames.map(f=>Array.from(f))}));validatePlaylist(saved.playlist,[...assets,...(saved.playlistRefs||[])]);
     const p=saved.pixel;if(![32,64,128].includes(p?.width)||p.height!==p.width/2||!Array.isArray(p.frames)||!p.frames.length||p.frames.length>100||p.frames.some(f=>f.length!==p.width*p.height||Array.from(f).some(v=>v!==0&&v!==1))||!Number.isInteger(p.index)||p.index<0||p.index>=p.frames.length||![5,8,10].includes(p.fps))throw new Error('畫板草稿格式錯誤');
     state={...saved,assets,pixel:{...p,frames:p.frames.map(f=>Uint8Array.from(f))}};renderLibrary();renderPlaylist();renderPixel();
   }
   storeReady=true;
-  experienceUI?.restoreDraft(state.extrasDraft);applySubtitleDraft(state.subtitleDraft||DEFAULT_SUBTITLE);updateSubtitle();
+  experienceUI?.restoreDraft(state.extrasDraft,state.extrasDraftMeta);applySubtitleDraft(state.subtitleDraft||DEFAULT_SUBTITLE);updateSubtitle();
   $('storage-state').textContent=`草稿箱已就緒 · ${state.assets.length} 個作品 · 僅保存在目前瀏覽器`;$('pixel-save-state').textContent='草稿已儲存在這台手機。';
 }catch(error){storeReady=false;$('storage-state').textContent='草稿箱暫時無法使用，離開前請匯出備份。';$('pixel-save-state').textContent='請匯出備份再離開，目前編輯只在記憶體。';toast('草稿箱無法開啟，請先匯出備份；現有資料沒有被清除。',true);}
 finishStoreReady(storeReady);

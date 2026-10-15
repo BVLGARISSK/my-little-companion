@@ -1,9 +1,9 @@
-import {syncMetadata,validateSyncPlan,requireSyncCapacity} from './smart-sync.js?v=1.3.3';
-import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.3.3';
-import {crc32,encodeOLA} from './media.js?v=1.3.3';
+import {syncMetadata,validateSyncPlan,requireSyncCapacity} from './smart-sync.js?v=1.3.4';
+import {UUID,PROTOCOL,fragmentMessage,MessageAssembler,dataPacket,authProof} from './protocol.js?v=1.3.4';
+import {crc32,encodeOLA} from './media.js?v=1.3.4';
 import {decryptOwnerPairing} from './administration.js';
-import {subtitleRuntime} from './subtitle-format.js?v=1.3.3';
-import {memoryUsage} from './storage-info.js?v=1.3.3';
+import {subtitleRuntime} from './subtitle-format.js?v=1.3.4';
+import {memoryUsage} from './storage-info.js?v=1.3.4';
 
 export class CompanionBLE extends EventTarget {
   constructor(){super();this.pending=new Map();this.assembler=new MessageAssembler();this.nextId=1;this.maxWrite=20;this.authorized=false;this.role=null;this.busy=false;this.info=null;this.memory=null;this.memoryRefresh=null;this.latestAck=null;this.authorization=null;this.connectionEpoch=0;}

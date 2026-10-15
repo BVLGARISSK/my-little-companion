@@ -1,17 +1,18 @@
-import {setupExperience} from './js/experience-ui.js?v=1.3.3';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.3';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.3';
+import {setupExperience} from './js/experience-ui.js?v=1.3.4';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.4';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.4';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.3.3';
+import {validatePlaylist} from './js/protocol.js?v=1.3.4';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.3';
-import {CompanionBLE} from './js/ble.js?v=1.3.3';
-import {batteryLabel} from './js/battery.js?v=1.3.3';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.3';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.4';
+import {CompanionBLE} from './js/ble.js?v=1.3.4';
+import {batteryLabel} from './js/battery.js?v=1.3.4';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.4';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.3';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.4';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.3';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.4';
+import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.3.4';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -79,27 +80,33 @@ function updateSubtitle(save=false){
     drawFrame($('subtitle-canvas'),subtitleThumbnail(subtitlePreview));
   }catch(error){subtitlePreview=null;$('subtitle-x').disabled=true;$('subtitle-y').disabled=true;$('subtitle-error').hidden=false;$('subtitle-error').textContent=error.message;$('subtitle-info').textContent='請調整字幕設定';drawFrame($('subtitle-canvas'),new Uint8Array(FRAME_BYTES));}
   state.subtitleDraft={...draft,name:$('subtitle-name').value};if(save)persist();
-  $('subtitle-save').disabled=!subtitlePreview;$('subtitle-send').disabled=!subtitlePreview;
+  const editing=state.assets.find(asset=>asset.id===state.subtitleEditingId&&asset.kind==='subtitle');
+  $('subtitle-save').textContent=editing?'更新字幕作品':'存成字幕作品';
+  $('subtitle-save-status').textContent=editing?`正在編輯「${editing.name}」。儲存或傳送會更新這一件；要保留原版，請選「另存新作品」。`:'儲存或傳送會加入作品集；完全相同的字幕會沿用原作品。';
+  $('subtitle-save').disabled=!subtitlePreview;$('subtitle-save-copy').disabled=!subtitlePreview;$('subtitle-send').disabled=!subtitlePreview;
 }
-function saveSubtitle(){
-  if(!subtitlePreview)throw new Error('請先修正字幕設定。');if(state.assets.length>=500)throw new Error('作品集已滿，請先備份並整理。');
+function saveSubtitle(copy=false){
+  if(!subtitlePreview)throw new Error('請先修正字幕設定。');
   const {positionBounds,...preview}=subtitlePreview;
-  const asset={...preview,id:newId(),name:$('subtitle-name').value.trim().slice(0,60)||'我的字幕',created:Date.now(),
-    frames:subtitlePreview.frames.map(f=>f.slice()),subtitle:{...subtitlePreview.subtitle}};
-  state.assets.push(asset);persist(true);renderLibrary();renderPlaylist();return asset;
+  const candidate={...preview,name:$('subtitle-name').value.trim().slice(0,60)||'我的字幕'};
+  const {asset,action}=saveSubtitleAsset(state.assets,candidate,{editingId:state.subtitleEditingId,copy,newId});
+  state.subtitleEditingId=asset.id;$('subtitle-name').value=asset.name;state.subtitleDraft={...subtitleDraft(),name:asset.name};
+  if(assetSelected?.id===asset.id)assetSelected=asset;
+  updateSubtitle();persist(true);renderLibrary();renderPlaylist();return{asset,action};
 }
 applySubtitleDraft();updateSubtitle();
 for(const id of ['text','font-size','font-family','bold','writing','align','x','y','face','keep-awake','motion','direction','speed','emotion'])
   bind('subtitle-'+id,()=>{clearTimeout(subtitleTimer);subtitleTimer=setTimeout(()=>updateSubtitle(true),120);},'input');
 bind('subtitle-position-reset',()=>{clearTimeout(subtitleTimer);$('subtitle-x').value=0;$('subtitle-y').value=0;updateSubtitle(true);});
-bind('subtitle-save',()=>{clearTimeout(subtitleTimer);updateSubtitle();saveSubtitle();toast('字幕已存進作品集，可傳送或加入播放清單。');});
-bind('subtitle-send',async()=>{if(syncing)throw new Error('正在同步，請稍後再傳送。');ble.capability('subtitle');clearTimeout(subtitleTimer);updateSubtitle();const asset=saveSubtitle();await transferAsset(asset);await ble.command('PLAY_MEDIA',{id:asset.id},'subtitle');toast('字幕已存進吊飾並開始播放。');});
+bind('subtitle-save',()=>{clearTimeout(subtitleTimer);updateSubtitle();const {action}=saveSubtitle();toast(action==='reused'?'字幕已存在，沿用原作品。':action==='updated'?'字幕作品已更新，沒有新增副本。':'字幕已存進作品集，可傳送或加入播放清單。');});
+bind('subtitle-save-copy',()=>{clearTimeout(subtitleTimer);updateSubtitle();saveSubtitle(true);toast('已另存新作品，原字幕保留。');});
+bind('subtitle-send',async()=>{if(syncing)throw new Error('正在同步，請稍後再傳送。');ble.capability('subtitle');clearTimeout(subtitleTimer);updateSubtitle();const {asset}=saveSubtitle();await transferAsset(asset);await ble.command('PLAY_MEDIA',{id:asset.id},'subtitle');toast('字幕已存進吊飾並開始播放。');});
 bind('subtitle-import',()=>$('subtitle-file').click());
 bind('subtitle-name',()=>{state.subtitleDraft={...subtitleDraft(),name:$('subtitle-name').value};persist();},'input');
 bind('subtitle-file',async e=>{
   const file=e.target.files[0];e.target.value='';if(!file)return;if(file.size>300000)throw new Error('字幕檔太大。');
   const asset=validateAsset(JSON.parse(await file.text()));if(asset.kind!=='subtitle')throw new Error('請選擇字幕 JSON 檔。');
-  if(state.assets.length>=500)throw new Error('作品集已滿，請先備份並整理。');asset.id=newId();state.assets.push(asset);persist(true);renderLibrary();renderPlaylist();applySubtitleDraft(asset.subtitle);$('subtitle-name').value=asset.name;updateSubtitle();toast('字幕檔已匯入作品集。');
+  const saved=saveSubtitleAsset(state.assets,asset,{newId});state.subtitleEditingId=saved.asset.id;renderLibrary();renderPlaylist();applySubtitleDraft(saved.asset.subtitle);$('subtitle-name').value=saved.asset.name;updateSubtitle();persist(true);toast(saved.action==='reused'?'相同字幕已存在，已開啟原作品。':'字幕檔已匯入作品集。');
 },'change');
 for(const emotion of EMOTIONS){const b=document.createElement('button');b.className='emotion-button';b.dataset.emotion=emotion.id;b.setAttribute('aria-pressed',emotion.id===mood?'true':'false');b.innerHTML=`<svg viewBox="0 0 32 26" aria-hidden="true">${emotion.shape}</svg><span>${emotion.name}</span>`;b.onclick=()=>{mood=emotion.id;auto=false;$('emotion-auto').checked=false;renderMood();};$('emotion-grid').append(b);}
 function renderMood(){document.querySelectorAll('[data-emotion]').forEach(b=>{b.classList.toggle('active',b.dataset.emotion===mood);b.setAttribute('aria-pressed',String(b.dataset.emotion===mood));});$('mood-caption').textContent=EMOTIONS.find(e=>e.id===mood).caption;}
@@ -135,9 +142,9 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.da
 async function deleteAsset(asset){
   if(state.playlist.items.some(i=>i.id===asset.id))throw new Error('這個作品在播放清單裡，先移除清單中的項目再刪除。');
   if(!await confirmAction('要收起這個作品嗎？',`會刪除這台手機裡的「${asset.name}」。吊飾上的作品需要另外管理。`))return;
-  state.assets=state.assets.filter(a=>a.id!==asset.id);persist(true);renderLibrary();renderPlaylist();toast('已從手機作品集移除。');
+  state.assets=state.assets.filter(a=>a.id!==asset.id);if(state.subtitleEditingId===asset.id){state.subtitleEditingId=null;updateSubtitle();}persist(true);renderLibrary();renderPlaylist();toast('已從手機作品集移除。');
 }
-function openAsset(asset){assetSelected=asset;assetStart=performance.now();$('asset-dialog-name').textContent=asset.name;$('asset-dialog-info').textContent=asset.kind==='subtitle'?`字幕 · ${asset.subtitle.font_px}px · ${asset.subtitle.speed} 像素／秒`:asset.kind==='image'?'128 × 64 · 單色圖片':`${asset.frames.length} 格 · ${(asset.frames.length/asset.fps).toFixed(1)} 秒 · ${asset.fps} FPS`;$('asset-to-pixel').textContent=asset.kind==='subtitle'?'複製到字幕編輯':'繼續畫畫';$('asset-export').textContent=asset.kind==='subtitle'?'下載字幕檔':'下載 OLA';$('asset-dialog').showModal();drawFrame($('asset-dialog-canvas'),asset.kind==='subtitle'?subtitleThumbnail(asset):asset.frames[0]);}
+function openAsset(asset){assetSelected=asset;assetStart=performance.now();$('asset-dialog-name').textContent=asset.name;$('asset-dialog-info').textContent=asset.kind==='subtitle'?`字幕 · ${asset.subtitle.font_px}px · ${asset.subtitle.speed} 像素／秒`:asset.kind==='image'?'128 × 64 · 單色圖片':`${asset.frames.length} 格 · ${(asset.frames.length/asset.fps).toFixed(1)} 秒 · ${asset.fps} FPS`;$('asset-to-pixel').textContent=asset.kind==='subtitle'?'編輯字幕':'繼續畫畫';$('asset-export').textContent=asset.kind==='subtitle'?'下載字幕檔':'下載 OLA';$('asset-dialog').showModal();drawFrame($('asset-dialog-canvas'),asset.kind==='subtitle'?subtitleThumbnail(asset):asset.frames[0]);}
 bind('asset-dialog-close',()=>$('asset-dialog').close());
 function download(bytes,name,type='application/octet-stream'){
   const url=URL.createObjectURL(new Blob([bytes],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
@@ -146,7 +153,7 @@ bind('asset-export',()=>{if(!assetSelected)return;const name=assetSelected.name.
 bind('asset-send',async()=>{if(!assetSelected)return;$('asset-dialog').close();await transferAsset(assetSelected);});
 bind('asset-play-device',async()=>{if(!assetSelected)return;await ble.command('PLAY_MEDIA',{id:assetSelected.id},'media');toast('小伴開始播放這個作品。');});
 bind('asset-to-pixel',async()=>{
-  if(assetSelected?.kind==='subtitle'){applySubtitleDraft(assetSelected.subtitle);$('subtitle-name').value=assetSelected.name;$('asset-dialog').close();showTab('subtitle');updateSubtitle();return;}
+  if(assetSelected?.kind==='subtitle'){state.subtitleEditingId=assetSelected.id;applySubtitleDraft(assetSelected.subtitle);$('subtitle-name').value=assetSelected.name;$('asset-dialog').close();showTab('subtitle');updateSubtitle();persist(true);return;}
   if(!assetSelected||!await confirmAction('接著畫這個作品？','目前的畫板草稿會被取代。已存進作品集的作品會保留。','開始畫畫'))return;
   state.pixel={width:128,height:64,frames:assetSelected.frames.map(unpackPixels),index:0,name:assetSelected.name,fps:assetSelected.fps===1?8:assetSelected.fps};undo=[];redo=[];renderPixel();persist();$('asset-dialog').close();showTab('pixel');
 });

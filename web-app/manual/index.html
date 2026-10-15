@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#faf8f3">
+  <meta name="description" content="小伴 OLED 吊飾線上使用說明：掃碼配對、作品、字幕、觸摸互動、遊戲、計時與省電。">
+  <link rel="canonical" href="https://quadcopteronline.org/manual/">
+  <link rel="icon" href="../assets/companion.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./manual.css?v=1.0.0">
+  <title>小伴使用說明書</title>
+</head>
+<body>
+<a class="skip-link" href="#guide">跳到使用說明</a>
+<header class="topbar">
+  <a class="brand" href="../"><img src="../assets/companion.svg" width="40" height="40" alt=""><span>小伴<small>my little companion</small></span></a>
+  <a class="button soft" href="../" target="_blank" rel="noopener">開啟控制頁 <span aria-hidden="true">↗</span></a>
+</header>
+<main id="guide">
+  <section class="hero" aria-labelledby="manual-title">
+    <p class="eyebrow">A LITTLE GUIDE FOR YOUR COMPANION</p>
+    <h1 id="manual-title">小伴使用說明書<span class="title-dot" aria-hidden="true">。</span></h1>
+    <p class="intro">從第一次連線，到放進喜歡的照片與文字，<br class="desktop-break">慢慢把小伴變成你的樣子。</p>
+    <p class="meta">XIAO ESP32-C5 版 · 適用 0.7.x 韌體<br>說明書 1.0 · 更新於 <time datetime="2026-10-15">2026 年 10 月 15 日</time></p>
+    <div class="hero-actions"><a class="button primary" href="#first-use">第一次使用</a><a class="button soft" href="#share">儲存說明書 QR</a></div>
+    <p class="update-note">這份線上說明會持續更新。同一張說明書 QR，可以再次開啟這個網址查看新版。</p>
+  </section>
+  <div class="guide-layout">
+    <nav class="contents" aria-label="說明書目錄"><details open><summary>找到需要的說明</summary><ol>
+      <li><a href="#first-use">開始使用與配對</a></li><li><a href="#pages">認識八個分頁</a></li><li><a href="#artwork">照片、畫畫與動畫</a></li><li><a href="#subtitles">文字與跑馬燈</a></li><li><a href="#playlist">播放清單與容量</a></li><li><a href="#touch">觸摸操作</a></li><li><a href="#motion">動作與安裝校正</a></li><li><a href="#play">遊戲、時鐘與計時</a></li><li><a href="#power">電池與省電</a></li><li><a href="#handover">備份、換手機與交接</a></li><li><a href="#help">遇到問題時</a></li><li><a href="#share">說明書 QR 與分享</a></li>
+    </ol></details></nav>
+    <!-- 更新說明內容時，編輯以下 article；保留 /manual/ 網址與章節 id，舊 QR 與連結仍可使用。 -->
+    <article class="guide-content">
+      <section class="guide-section" id="first-use"><p class="section-number">01 · GET STARTED</p><h2>開始使用與配對</h2>
+        <div class="notice"><strong>先準備吊飾的專屬配對卡。</strong><p>目前這張「說明書 QR」供閱讀操作指南。控制吊飾時，請掃描隨吊飾附上的「一般配對 QR」，讓控制頁帶入該台裝置的授權碼。</p></div>
+        <ol class="steps"><li><strong>在手機開啟配對網址</strong><p>iPhone 請先安裝 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a>。掃描吊飾配對卡；若先進入 Safari，按「複製配對網址」，再把完整網址貼進 Bluefy。Android 可使用支援 Web Bluetooth 的 Chrome。</p></li><li><strong>開啟吊飾，尋找小夥伴</strong><p>開啟手機藍牙與瀏覽器的藍牙權限，在吊飾開機後 5 分鐘內，按「尋找小夥伴」，選擇 <b>Little Companion C5</b>。逾時可長按觸摸區約 2 秒，重新開放連線。</p></li><li><strong>確認授權，開始創作</strong><p>看到「已授權」即可控制。「記住這台吊飾的授權碼」勾選後，成功授權會記住在目前瀏覽器；下次開控制頁再尋找裝置即可。傳送時保持網頁在前景，等完成後再離開。</p></li></ol>
+        <p>連線後，若 10 分鐘沒有上傳作品或同步清單，吊飾會關閉藍牙。這不會停止吊飾中已保存的播放內容。</p>
+      </section>
+      <section class="guide-section" id="pages"><p class="section-number">02 · FIND YOUR WAY</p><h2>認識八個分頁</h2>
+        <dl class="feature-list"><div><dt>表情</dt><dd>預覽六種表情，選手動或自動切換，再按「套用這個表情」。</dd></div><div><dt>作品</dt><dd>加入照片，整理圖片、動畫、字幕，傳送或加入播放清單。</dd></div><div><dt>畫畫</dt><dd>畫像素圖，也能複製影格、逐格製作動畫。</dd></div><div><dt>動畫</dt><dd>把 GIF 或短影片轉成 OLED 動畫，調縮放、位置及背景。</dd></div><div><dt>字幕</dt><dd>製作固定文字、水平／垂直跑馬燈、中文直排與表情＋字幕。</dd></div><div><dt>播放</dt><dd>安排混合清單的順序、時間與循環方式，再同步給吊飾。</dd></div><div><dt>玩法</dt><dd>設定觸摸、動作、安裝校正、遊戲、時鐘、計時與省電方案。</dd></div><div><dt>裝置</dt><dd>連線授權，查看電池、容量及 RAM，管理備份、配對卡與恢復出廠。</dd></div></dl>
+        <p class="callout"><strong>預覽 → 儲存 → 傳送 → 播放。</strong>手機預覽只改手機畫面；「存進作品集」只保存在這個瀏覽器。傳送到吊飾後，按「在吊飾播放」，或同步播放清單，才會在 OLED 顯示。</p>
+      </section>
+      <section class="guide-section" id="artwork"><p class="section-number">03 · MAKE SOMETHING</p><h2>照片、畫畫與動畫</h2>
+        <h3>把照片放進小畫面</h3><ol><li>到「作品 → 加入照片」，選照片並命名。</li><li>調整縮放、左右／上下位置，讓主體完整出現在黑白預覽。</li><li>調黑白分界、亮度、對比；照片可試抖色，線條圖可先不勾選。</li><li>縮小後用「背景補齊」選黑色或白色。黑色不亮燈，白色亮燈。</li><li>按「存進作品集」，開啟作品預覽，傳送後再按「在吊飾播放」。</li></ol>
+        <h3>畫像素圖與逐格動畫</h3><p>在「畫畫」選 32 × 16、64 × 32 或 128 × 64 畫布，使用畫筆、橡皮擦或填色。畫好一格後按「複製這格」，修改下一格；「看見上一格」能輔助對齊。最多 100 格，可選 5、8、10 FPS。單格保存為圖片，多格保存為動畫。</p>
+        <h3>GIF 或影片轉換</h3><ol><li>到「動畫」選 GIF 或影片，設定開始秒數與長度；最長 10 秒、最多 100 格。</li><li>調 0.10～3.00 倍縮放及位置；「完整畫面」可保留全景，背景補齊可選黑或白。</li><li>選速度、黑白分界、抖色或反轉，按「轉成小動畫」，再預覽與保存。</li></ol><p>改過轉換設定後，要再次按「轉成小動畫」。影片能否解碼取決於手機瀏覽器，建議先試 H.264 MP4。OLED 只有 128 × 64 單色像素，輪廓清楚、主體大的畫面通常比較容易辨識。</p>
+      </section>
+      <section class="guide-section" id="subtitles"><p class="section-number">04 · SAY IT IN PIXELS</p><h2>文字與跑馬燈</h2>
+        <ol><li>在「字幕」填名稱與文字，可換行，最多 160 個 Unicode 字元。</li><li>選顯示方式：固定、水平跑馬燈、垂直捲動；再選橫排或中文直排。</li><li>調字體 8～32 px、字型、粗體與對齊，以預覽確認字形及大小。</li><li>用左右／上下偏移調整位置。固定字幕可調兩個方向；水平跑馬燈可調上下；垂直捲動可調左右。按「重設文字位置」回到置中基準。</li><li>捲動可選方向與速度 1～120 像素／秒；勾選「表情＋字幕」可搭配表情。</li><li>按「存成字幕作品」保存草稿，或連線後按「傳送並播放」。也能加入播放清單。</li></ol>
+        <p>字太大而放不下時，先縮小字體、減少文字、換行或改成捲動。字型與符號由手機產生，手機不支援的字可能以替代字顯示。</p>
+        <p>「播放這個字幕時保持螢幕亮」預設關閉；未勾選時仍會依靜止設定關屏，喚醒後接續播放。勾選會增加耗電，不會延長藍牙窗口。</p>
+        <div class="notice"><strong>跑馬燈的手機預覽與 OLED 流暢度可能不同。</strong><p>目前已有實機回報水平純文字偶爾停頓，韌體優化仍在處理；提高速度不代表會提高 OLED 更新率。</p></div>
+      </section>
+      <section class="guide-section" id="playlist"><p class="section-number">05 · KEEP IT PLAYING</p><h2>播放清單與容量</h2>
+        <ol><li>在作品卡按「＋ 播放清單」，或到「播放」加入表情與作品。</li><li>拖曳或用箭頭排序，設定每項 1～600 秒；最多 64 項，取消勾選可暫時停用。</li><li>選循環、隨機或播放一次，先用手機預覽確認。</li><li>連線授權，按「同步給小伴」，等作品傳送及清單保存都完成。</li></ol>
+        <p>保存後可中斷手機，吊飾自行播放。休眠時播放時間暫停，喚醒後接續。智慧同步會核對相同作品並省略重複傳輸；它不會把吊飾作品變成另一支手機的可編輯草稿。</p>
+        <dl class="feature-list"><div><dt>作品空間</dt><dd>保存作品的 Flash，作品分區約 1.50 MiB，最多 32 件作品，保留 64 KiB 供安全操作；以裝置頁即時數字為準。</dd></div><div><dt>運作 RAM</dt><dd>播放、藍牙執行時使用，會隨運作改變；「最大連續可用區塊」是一次能配置的最大區塊。</dd></div></dl>
+        <p>連線授權後可按「更新容量／更新 RAM」。若空間不足，先解除清單或動作規則的引用，再從「裝置 → 吊飾裡的作品」刪除不需要的內容。</p>
+      </section>
+      <section class="guide-section" id="touch"><p class="section-number">06 · A LITTLE TOUCH</p><h2>觸摸操作</h2><p>以下是預設操作，可在「玩法」修改對應動作。每一下輕觸後放開，快速接下一下；最後一下放開約 0.38 秒後判定多擊。</p>
+        <div class="table-wrap"><table><caption>觸摸區預設操作</caption><thead><tr><th scope="col">操作</th><th scope="col">功能</th></tr></thead><tbody><tr><th scope="row">單擊</th><td>表情模式換表情；作品播放中維持原播放。</td></tr><tr><th scope="row">雙擊</th><td>下一個作品／清單項目。</td></tr><tr><th scope="row">三擊</th><td>上一個作品／清單項目。</td></tr><tr><th scope="row">長按 2 秒</th><td>重新開放藍牙連線。</td></tr><tr><th scope="row">繼續按到 4 秒</th><td>鎖定／解鎖短按，鎖定時顯示小鎖。</td></tr><tr><th scope="row">熄屏時第一次觸摸</th><td>只喚醒；亮起後再操作多擊。</td></tr><tr><th scope="row">遊戲中單擊</th><td>重投骰子或重新開始。</td></tr><tr><th scope="row">計時畫面單擊</th><td>暫停／繼續計時。</td></tr><tr><th scope="row">遊戲／計時雙、三擊</th><td>離開畫面，回到原播放；進行中的計時仍繼續。</td></tr></tbody></table></div>
+        <p>短按鎖定仍保留觸摸喚醒、長按開藍牙、長按解鎖與動作互動。需要防誤觸時，可在「玩法」設定開機鎖定短按。</p>
+      </section>
+      <section class="guide-section" id="motion"><p class="section-number">07 · MOVE WITH IT</p><h2>動作與安裝校正</h2>
+        <ol><li>到「玩法 → 安裝方向與靈敏度」，依平常拿法將吊飾正面朝自己、直立拿穩。</li><li>按「正向校正」，再輕輕左右、上下傾斜，看眼神方向。</li><li>若方向不對，可交換感測軸或選反向；左右、上下要使用不同軸。</li><li>按「套用互動與省電設定」。傾斜幅度越小越敏感，可先從預設 0.45 調整。</li></ol>
+        <p>拿起時可打招呼；刻意來回搖晃可觸發頭暈表情。倒拿自動轉正需先校正，方向穩定約 0.8 秒才翻轉。</p>
+        <p>八種事件包括單擊、雙擊、三擊、拿起、左傾、右傾、倒拿、搖晃；可指定預設、不動作、表情、作品、下一個或上一個。選手機作品時會先傳入吊飾，再保存規則。</p>
+        <p>預設動作反應用於表情或表情＋字幕。想在作品播放時插播互動，請啟用「允許播放作品時插播動作互動」；插播後接回原播放。傾斜眼神的靈敏度與頭暈觸發門檻是不同設定。</p>
+      </section>
+      <section class="guide-section" id="play"><p class="section-number">08 · LITTLE BREAKS</p><h2>遊戲、時鐘與計時</h2>
+        <h3>迷你遊戲</h3><p>「玩法」可開啟骰子、傾斜迷宮、傾斜躲障礙。骰子可觸摸或搖晃重投；傾斜遊戲需要 MPU6050，建議先校正。可從手機離開遊戲，或用觸摸雙擊／三擊退出。</p>
+        <h3>時鐘</h3><p>連線後預設同步手機時間與時區，也可手動校時。深眠仍保留時間，完整斷電後需重新連線校時；時間可能漂移。</p>
+        <h3>倒數與番茄鐘</h3><p>倒數可設至 24 小時。番茄鐘可設專注 1～120 分鐘、短休息 1～60 分鐘、長休息 1～120 分鐘、1～8 輪；最後一輪長休息後結束。到時間會亮屏提醒，目前沒有蜂鳴器或手機背景通知。深眠保留計時，完整斷電會取消。</p>
+      </section>
+      <section class="guide-section" id="power"><p class="section-number">09 · REST AND RECHARGE</p><h2>電池與省電</h2>
+        <p>「玩法」可選省電方案，也可自訂亮度及各段時間。時間填 0 表示停用該項。</p>
+        <div class="table-wrap"><table><caption>預設省電方案</caption><thead><tr><th scope="col">方案</th><th scope="col">調暗</th><th scope="col">關屏</th><th scope="col">深眠</th></tr></thead><tbody><tr><th scope="row">日常</th><td>15 秒</td><td>60 秒</td><td>10 分鐘</td></tr><tr><th scope="row">展示</th><td>停用</td><td>停用</td><td>停用</td></tr><tr><th scope="row">長續航</th><td>5 秒</td><td>20 秒</td><td>3 分鐘</td></tr></tbody></table></div>
+        <p>關屏後可透過移動或觸摸喚醒並接續播放。深眠需移動中斷已確認、藍牙窗口結束，且沒有上傳、USB 資料主機或字幕常亮等阻擋條件；深眠喚醒後，長按觸摸區 2 秒可再開放藍牙。</p>
+        <p>電池欄位顯示電壓與「約」的估計百分比，每約 30 秒讀取。這是電壓估算，充電時可能偏高，不能當作精確剩餘時間。</p>
+        <p>USB 欄位辨識資料主機連線。若沒有補接充電狀態訊號，充電欄位顯示「目前無法讀取」是正常的，不能用插上 USB 或電壓升高就判定正在充電。</p>
+        <p>低電量提醒及低電壓深眠可在「玩法」設定。預設約 3.40 V 提醒、3.20 V 保護，並要求連續讀值確認；先充電再恢復使用。實際續航仍需從電池端量測整機電流。</p>
+      </section>
+      <section class="guide-section" id="handover"><p class="section-number">10 · KEEP AND SHARE</p><h2>備份、換手機與交接</h2>
+        <h3>作品備份</h3><p>到「裝置」按「匯出備份」，保存 JSON；換手機後在新瀏覽器匯入。草稿保存在目前手機、目前瀏覽器，Safari 與 Bluefy 不共用，也沒有自動雲端同步。備份不含吊飾授權碼。</p>
+        <h3>兩支手機輪流控制</h3><p>兩支手機都能掃同一張有效的一般配對 QR，各自授權並記住。一次使用一台：先在手機 A 中斷連線，必要時關閉其控制分頁；長按觸摸約 2 秒，再由手機 B 連線。</p>
+        <h3>交給朋友</h3><p>把吊飾、該台的一般配對卡與這份說明書 QR 一起交給朋友。朋友掃一般卡取得控制授權，掃說明書卡看操作指南。管理員卡由管理者保管。</p>
+        <h3>完整恢復出廠</h3><p>用管理員卡授權後，到「裝置 → 交接與恢復出廠」。完整恢復出廠會清除吊飾作品、清單、設定並更換一般碼；管理員碼與手機草稿保留。重設完成後取得新的朋友配對 QR，原一般卡會失效。</p>
+        <p>說明書 QR 沒有裝置密鑰，恢復出廠後仍能閱讀。換成另一台吊飾時，控制授權要使用新吊飾自己的配對卡。</p>
+      </section>
+      <section class="guide-section" id="help"><p class="section-number">11 · NEED A HAND?</p><h2>遇到問題時</h2>
+        <details class="faq"><summary>手機搜尋不到吊飾</summary><p>先確認 OLED 有正常畫面、手機藍牙及瀏覽器權限已開啟。長按觸摸區約 2 秒，再在控制頁按「尋找小夥伴」。iPhone 請用 Bluefy；另一支手機已連線時，先從那支手機中斷。</p></details>
+        <details class="faq"><summary>授權碼錯誤或挑戰已過期</summary><p>確認使用這台吊飾目前有效的配對卡。重新掃卡，將完整配對網址帶進 Bluefy，重新整理後再連線授權。若已完整恢復出廠，需要新的一般卡；同一台的管理員卡仍可使用。</p></details>
+        <details class="faq"><summary>預覽正常，吊飾卻沒有換畫面</summary><p>檢查是否已授權、傳送是否完成；手機保存作品之後還要傳送。開作品預覽按「在吊飾播放」，或到「播放」同步清單；字幕可按「傳送並播放」。</p></details>
+        <details class="faq"><summary>觸摸多擊沒有反應</summary><p>先喚醒螢幕，確認沒有短按鎖定。每一下放開再快速連按，最後放開稍等判定。遊戲、計時畫面有自己的短按功能；也請確認「玩法」是否改過對應事件。</p></details>
+        <details class="faq"><summary>螢幕自動熄滅，或藍牙過一陣子消失</summary><p>這可能是設定中的靜止省電或藍牙窗口結束。移動或觸摸喚醒畫面，長按約 2 秒重開藍牙。需要長時間顯示時，可選展示方案，或為該字幕啟用保持亮屏。</p></details>
+        <details class="faq"><summary>說明書怎麼看不到新內容？</summary><p>連上網路後重新整理本頁。頁首會標示說明書版本與更新日期；離線時可能只能看到之前快取的內容。紙本 QR 不需要換，只要原本的說明書網址持續保留。</p></details>
+        <p class="small">可使用的選項依吊飾韌體而異。畫面上的預覽、已完成的實機測試與未完成的優化有各自範圍；這份指南不代表每種安裝方向、影片格式或使用情境都已測試。安全 OTA 尚未開放。</p>
+      </section>
+      <section class="guide-section share-section" id="share"><p class="section-number">12 · THIS GUIDE, ANYTIME</p><h2>把說明書留在身邊</h2><p>這張 QR 只包含固定的說明書網址，可以印在卡片、包裝或吊飾附卡。內容更新後，原本的卡仍能使用。</p>
+        <div class="share-card"><img class="manual-qr" src="./qr.png" width="592" height="592" alt="小伴線上使用說明 QR Code，連結至 https://quadcopteronline.org/manual/" loading="lazy"><div><h3>小伴使用說明書</h3><p>掃描查看最新操作指南</p><a class="manual-url" href="https://quadcopteronline.org/manual/">quadcopteronline.org/manual/</a><div class="button-row"><a class="button primary" href="./qr-card.png" download="小伴-使用說明書QR卡.png">下載 QR 說明卡</a><a class="button soft" href="./qr.png" download="小伴-說明書QR.png">下載純 QR</a></div><div class="button-row"><button class="button text-button" id="copy-manual-url" type="button">複製說明書網址</button><a class="button text-button" href="./qr-card.svg" download="小伴-使用說明書QR卡.svg">下載向量圖</a></div><p class="copy-status small" id="copy-status" role="status" aria-live="polite"></p></div></div>
+        <p class="small">這份公開說明書不包含授權碼。控制吊飾時，仍使用隨吊飾附上的專屬配對卡。</p>
+      </section>
+    </article>
+  </div>
+</main>
+<footer><a href="#manual-title">回到頁首 ↑</a><span>小伴 · 線上使用說明</span></footer>
+<script type="module" src="./manual.js?v=1.0.0"></script>
+</body>
+</html>

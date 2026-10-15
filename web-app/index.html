@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#faf8f3"><meta name="description" content="OLED 吊飾控制與創作工具。預覽表情、編輯照片、繪製像素動畫，再同步播放清單。">
   <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=1.3.2"><title>小伴 · My Little Companion</title>
+  <link rel="stylesheet" href="./style.css?v=1.3.3"><title>小伴 · My Little Companion</title>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -215,15 +215,16 @@
           <p class="small">恢復出廠會清除吊飾的照片、動畫、播放清單與設定，並更換一般授權碼。管理員碼及這台手機的草稿會保留。舊一般 QR 將失效。</p>
           <div id="owner-pairing-card" class="owner-pairing" hidden><h3>給朋友的一般配對卡</h3><canvas id="owner-pairing-qr" aria-label="這台吊飾目前的一般配對 QR"></canvas><p id="owner-pairing-device" class="small"></p><p class="small">把這張 QR 和吊飾交給朋友，掃碼後用 Bluefy 開啟並連線。</p><div class="button-row wrap"><button id="download-owner-qr" class="button sage-button">儲存 QR 圖片</button><button id="copy-owner-link" class="button soft">複製配對網址</button></div><label id="owner-link-fallback" hidden>長按複製配對網址<input id="owner-pairing-link" type="text" readonly autocomplete="off" spellcheck="false"></label></div>
         </div>
+        <div class="card"><h3>使用說明書</h3><p class="small">配對、作品、字幕與日常操作都在這裡。把說明書 QR 和吊飾一起交給朋友，之後內容更新也能用同一張卡閱讀。</p><div class="button-row wrap"><a class="button sage-button" href="./manual/" target="_blank" rel="noopener">閱讀使用說明</a><a class="button soft" href="./manual/qr-card.png" download="小伴-使用說明書QR卡.png">儲存說明書 QR</a></div><p class="small">說明書 QR 供公開閱讀；連線控制仍使用吊飾的專屬配對卡。</p></div>
         <div class="card"><h3>韌體更新</h3><p class="small">這版先完成網頁控制與創作。安全 OTA 會在吊飾韌體整合完成後開放。</p><span class="badge">等待韌體支援</span></div></div>
       </div>
     </section>
   </main>
 </div>
-<footer class="site-footer"><span>pixels for everyday</span><span>小伴 web · v1.3.2</span></footer>
+<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.3.3</span></footer>
 <div id="transfer-panel" class="transfer-panel" hidden><div class="section-title"><strong id="transfer-label">正在傳送作品…</strong><button id="cancel-transfer" class="button tiny">取消</button></div><progress id="transfer-progress" max="1" value="0"></progress><p id="transfer-detail" class="small"></p></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
 <dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
-<script type="module" src="./app.js?v=1.3.2"></script>
+<script type="module" src="./app.js?v=1.3.3"></script>
 </body></html>

@@ -49,3 +49,5 @@ input:is(:not([type]),[type=text],[type=password],[type=number],[type=search],[t
 .extras-game-buttons{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
 @media(max-width:700px){.extras-layout{grid-template-columns:minmax(0,1fr);gap:16px}}
 @media(max-width:380px){.extras-rules{grid-template-columns:minmax(0,1fr)}.extras-toolbar .button{font-size:11px;padding:11px 9px}}
+
+.site-footer{align-items:center;gap:16px}.site-footer>a{font-size:12px;min-height:44px;display:inline-flex;align-items:center;color:#68775c;text-underline-offset:4px}

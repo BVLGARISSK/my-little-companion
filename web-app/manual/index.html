@@ -21,7 +21,7 @@
     <p class="eyebrow">A LITTLE GUIDE FOR YOUR COMPANION</p>
     <h1 id="manual-title">小伴使用說明書<span class="title-dot" aria-hidden="true">。</span></h1>
     <p class="intro">從第一次連線，到放進喜歡的照片與文字，<br class="desktop-break">慢慢把小伴變成你的樣子。</p>
-    <p class="meta">XIAO ESP32-C5 版 · 適用 0.7.x 韌體<br>說明書 1.1 · 更新於 <time datetime="2026-10-15">2026 年 10 月 15 日</time></p>
+    <p class="meta">XIAO ESP32-C5 版 · 適用 0.7.x 韌體<br>說明書 1.2 · 更新於 <time datetime="2026-10-15">2026 年 10 月 15 日</time></p>
     <div class="hero-actions"><a class="button primary" href="#first-use">第一次使用</a><a class="button soft" href="#share">儲存說明書 QR</a></div>
     <p class="update-note">這份線上說明會持續更新。同一張說明書 QR，可以再次開啟這個網址查看新版。</p>
   </section>
@@ -47,6 +47,7 @@
       </section>
       <section class="guide-section" id="subtitles"><p class="section-number">04 · SAY IT IN PIXELS</p><h2>文字與跑馬燈</h2>
         <ol><li>在「字幕」填名稱與文字，可換行，最多 160 個 Unicode 字元。</li><li>選顯示方式：固定、水平跑馬燈、垂直捲動；再選橫排或中文直排。</li><li>調字體 8～32 px、字型、粗體與對齊，以預覽確認字形及大小。</li><li>用左右／上下偏移調整位置。固定字幕可調兩個方向；水平跑馬燈可調上下；垂直捲動可調左右。按「重設文字位置」回到置中基準。</li><li>捲動可選方向與速度 1～120 像素／秒；勾選「表情＋字幕」可搭配表情。</li><li>第一次按「存成字幕作品」，或連線後按「傳送並播放」。之後儲存與傳送會更新正在編輯的這一件，完全相同的作品會沿用，不會每按一次就新增。</li></ol>
+        <p>連線後可在字幕頁按「回到播放清單」，讓吊飾依原播放方式重新開始最後同步的清單；手機草稿有修改時，先到「播放」同步。C5 0.7.6 起，單獨播放字幕時也能單擊觸摸區返回，需使用預設單擊操作且短按未鎖定。清單裡安排的字幕仍按清單播放。</p>
         <p>要修改既有字幕，從作品預覽按「編輯字幕」，再按「更新字幕作品」。想保留原版，按「另存新作品」，同名時會加上序號。舊版已保存的不同版本不會自動刪除。</p>
         <p>字太大而放不下時，先縮小字體、減少文字、換行或改成捲動。字型與符號由手機產生，手機不支援的字可能以替代字顯示。</p>
         <p>「播放這個字幕時保持螢幕亮」預設關閉；未勾選時仍會依靜止設定關屏，喚醒後接續播放。勾選會增加耗電，不會延長藍牙窗口。</p>
@@ -59,7 +60,8 @@
         <p>連線授權後可按「更新容量／更新 RAM」。若空間不足，先解除清單或動作規則的引用，再從「裝置 → 吊飾裡的作品」刪除不需要的內容。</p>
       </section>
       <section class="guide-section" id="touch"><p class="section-number">06 · A LITTLE TOUCH</p><h2>觸摸操作</h2><p>以下是預設操作，可在「玩法」修改對應動作。每一下輕觸後放開，快速接下一下；最後一下放開約 0.38 秒後判定多擊。</p>
-        <div class="table-wrap"><table><caption>觸摸區預設操作</caption><thead><tr><th scope="col">操作</th><th scope="col">功能</th></tr></thead><tbody><tr><th scope="row">單擊</th><td>表情模式換表情；作品播放中維持原播放。</td></tr><tr><th scope="row">雙擊</th><td>下一個作品／清單項目。</td></tr><tr><th scope="row">三擊</th><td>上一個作品／清單項目。</td></tr><tr><th scope="row">長按 2 秒</th><td>重新開放藍牙連線。</td></tr><tr><th scope="row">繼續按到 4 秒</th><td>鎖定／解鎖短按，鎖定時顯示小鎖。</td></tr><tr><th scope="row">熄屏時第一次觸摸</th><td>只喚醒；亮起後再操作多擊。</td></tr><tr><th scope="row">遊戲中單擊</th><td>重投骰子或重新開始。</td></tr><tr><th scope="row">計時畫面單擊</th><td>暫停／繼續計時。</td></tr><tr><th scope="row">遊戲／計時雙、三擊</th><td>離開畫面，回到原播放；進行中的計時仍繼續。</td></tr></tbody></table></div>
+        <div class="table-wrap"><table><caption>觸摸區預設操作</caption><thead><tr><th scope="col">操作</th><th scope="col">功能</th></tr></thead><tbody><tr><th scope="row">單擊</th><td>表情模式換表情；C5 0.7.6 起，單獨播放字幕時回到清單。圖片、動畫及清單播放中維持原播放。</td></tr><tr><th scope="row">雙擊</th><td>下一個啟用的清單項目（C5 0.7.6 起）。</td></tr><tr><th scope="row">三擊</th><td>上一個啟用的清單項目（C5 0.7.6 起）。</td></tr><tr><th scope="row">長按 2 秒</th><td>重新開放藍牙連線。</td></tr><tr><th scope="row">繼續按到 4 秒</th><td>鎖定／解鎖短按，鎖定時顯示小鎖。</td></tr><tr><th scope="row">熄屏時第一次觸摸</th><td>只喚醒；亮起後再操作多擊。</td></tr><tr><th scope="row">遊戲中單擊</th><td>重投骰子或重新開始。</td></tr><tr><th scope="row">計時畫面單擊</th><td>暫停／繼續計時。</td></tr><tr><th scope="row">遊戲／計時雙、三擊</th><td>離開畫面，回到原播放；進行中的計時仍繼續。</td></tr></tbody></table></div>
+        <p>C5 0.7.6 起，下一個／上一個只從已同步到吊飾的清單挑選啟用項目，清單空或全部停用時維持目前畫面；清單外的單件作品不會被輪到。0.7.3 以前在單件模式會遍歷作品庫，需更新韌體才有新規則。</p>
         <p>短按鎖定仍保留觸摸喚醒、長按開藍牙、長按解鎖與動作互動。需要防誤觸時，可在「玩法」設定開機鎖定短按。</p>
       </section>
       <section class="guide-section" id="motion"><p class="section-number">07 · MOVE WITH IT</p><h2>動作與安裝校正</h2>
@@ -92,6 +94,7 @@
         <details class="faq"><summary>手機搜尋不到吊飾</summary><p>先確認 OLED 有正常畫面、手機藍牙及瀏覽器權限已開啟。長按觸摸區約 2 秒，再在控制頁按「尋找小夥伴」。iPhone 請用 Bluefy；另一支手機已連線時，先從那支手機中斷。</p></details>
         <details class="faq"><summary>授權碼錯誤或挑戰已過期</summary><p>確認使用這台吊飾目前有效的配對卡。重新掃卡，將完整配對網址帶進 Bluefy，重新整理後再連線授權。若已完整恢復出廠，需要新的一般卡；同一台的管理員卡仍可使用。</p></details>
         <details class="faq"><summary>預覽正常，吊飾卻沒有換畫面</summary><p>檢查是否已授權、傳送是否完成；手機保存作品之後還要傳送。開作品預覽按「在吊飾播放」，或到「播放」同步清單；字幕可按「傳送並播放」。</p></details>
+        <details class="faq"><summary>跑馬燈怎麼回到播放清單？</summary><p>網頁字幕頁按「回到播放清單」。C5 0.7.6 起，單獨播放字幕時可單擊觸摸區；先喚醒螢幕，確認短按未鎖定且「玩法 → 單擊」為預設。吊飾須先有已同步、啟用且可讀取的清單項目，否則維持字幕。返回會依原清單模式重新開始，並非接續之前的秒數。</p></details>
         <details class="faq"><summary>觸摸多擊沒有反應</summary><p>先喚醒螢幕，確認沒有短按鎖定。每一下放開再快速連按，最後放開稍等判定。遊戲、計時畫面有自己的短按功能；也請確認「玩法」是否改過對應事件。</p></details>
         <details class="faq"><summary>螢幕自動熄滅，或藍牙過一陣子消失</summary><p>這可能是設定中的靜止省電或藍牙窗口結束。移動或觸摸喚醒畫面，長按約 2 秒重開藍牙。需要長時間顯示時，可選展示方案，或為該字幕啟用保持亮屏。</p></details>
         <details class="faq"><summary>說明書怎麼看不到新內容？</summary><p>連上網路後重新整理本頁。頁首會標示說明書版本與更新日期；離線時可能只能看到之前快取的內容。紙本 QR 不需要換，只要原本的說明書網址持續保留。</p></details>

@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from './experience-format.js?v=1.3.4';
+import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from './experience-format.js?v=1.3.5';
 export function setupExperience({ble,toast,getAssets,getDraft,onDraft,transferAsset,isBusy}){
  const $=id=>document.getElementById(id);
  let current=structuredClone(DEFAULT_SETTINGS),runtime=null,remote=[],dirty=false,busy=false,reading=null,device=null;
@@ -17,10 +17,12 @@ export function setupExperience({ble,toast,getAssets,getDraft,onDraft,transferAs
  }
  function targets(preferCurrent=false){
   const assets=new Map(remote.map(a=>[a.id,a]));for(const asset of getAssets())assets.set(asset.id,asset);
+  const version=String(ble.info?.firmware||'').match(/^(\d+)\.(\d+)\.(\d+)-c5$/),[major,minor,patch]=version?version.slice(1).map(Number):[];
+  const subtitleReturn=version&&(major>0||minor>7||(minor===7&&patch>=6));
   for(const [i,[event,label]] of EVENTS.entries()){
    let row=$('extras-rule-'+event);if(!row){row=document.createElement('label');row.id='extras-rule-'+event;row.textContent=label;const select=document.createElement('select');select.id='extras-rule-select-'+event;select.dataset.ruleIndex=i;select.onchange=changed;row.append(select);$('extras-rules').append(row);}
    const select=row.querySelector('select'),previous=preferCurrent?ruleValue(current.rules[i]):select.value||ruleValue(current.rules[i]);select.replaceChildren();
-   for(const [value,text] of [['default',event==='single'?'預設：切表情':event==='double'?'預設：下一個作品':event==='triple'?'預設：上一個作品':event==='pickup'?'預設：打招呼':event==='shake'?'預設：暈眩表情':'保留預設動作'],['none','不觸發動作'],['next','下一個作品'],['previous','上一個作品'],...['neutral','happy','sad','surprised','sleepy','angry'].map((m,i)=>['emotion:'+m,'表情 · '+['平靜','開心','難過','驚訝','想睡','生氣'][i]]),...Array.from(assets.values(),a=>['media:'+a.id,'作品 · '+a.name])])select.add(new Option(text,value));
+   for(const [value,text] of [['default',event==='single'?(subtitleReturn?'預設：切表情／字幕回清單':'預設：切表情'):event==='double'?'預設：下一個作品':event==='triple'?'預設：上一個作品':event==='pickup'?'預設：打招呼':event==='shake'?'預設：暈眩表情':'保留預設動作'],['none','不觸發動作'],['next','下一個作品'],['previous','上一個作品'],...['neutral','happy','sad','surprised','sleepy','angry'].map((m,i)=>['emotion:'+m,'表情 · '+['平靜','開心','難過','驚訝','想睡','生氣'][i]]),...Array.from(assets.values(),a=>['media:'+a.id,'作品 · '+a.name])])select.add(new Option(text,value));
    if(previous.startsWith('media:')&&!Array.from(select.options).some(o=>o.value===previous))select.add(new Option('已綁定的裝置作品 '+previous.slice(6,14),previous));select.value=previous;
   }
  }

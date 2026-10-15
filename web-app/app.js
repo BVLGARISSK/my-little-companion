@@ -1,18 +1,18 @@
-import {setupExperience} from './js/experience-ui.js?v=1.3.4';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.4';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.4';
+import {setupExperience} from './js/experience-ui.js?v=1.3.5';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.3.5';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.3.5';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.3.4';
+import {validatePlaylist} from './js/protocol.js?v=1.3.5';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.4';
-import {CompanionBLE} from './js/ble.js?v=1.3.4';
-import {batteryLabel} from './js/battery.js?v=1.3.4';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.4';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.3.5';
+import {CompanionBLE} from './js/ble.js?v=1.3.5';
+import {batteryLabel} from './js/battery.js?v=1.3.5';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.3.5';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.4';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.3.5';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.4';
-import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.3.4';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.3.5';
+import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.3.5';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -456,7 +456,16 @@ bind('factory-reset',async()=>{
   }catch(error){$('factory-reset-status').textContent='重設結果尚未確認。請用管理員卡重新連線檢查，避免重複清除。';throw error;}
   finally{resetBusy=false;updateAdminTools();}
 });
-bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});bind('resume-playlist',async()=>{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('已恢復播放清單。');});
+bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});
+let playlistReturning=false;
+async function resumePlaylist(){
+  if(playlistReturning||syncing||resetBusy||ble.busy)throw new Error('請等目前的作品傳送或裝置操作完成。');
+  playlistReturning=true;for(const id of ['resume-playlist','subtitle-resume-playlist'])$(id).disabled=true;
+  try{await ble.command('PLAY_PLAYLIST',{},'playlist');toast('吊飾已回到播放清單，依原播放方式重新開始。');}
+  catch(error){if(error.code==='PLAYLIST')throw new Error('吊飾尚無可播放的清單項目，請先到「播放」加入啟用項目並同步。');throw error;}
+  finally{playlistReturning=false;for(const id of ['resume-playlist','subtitle-resume-playlist'])$(id).disabled=false;}
+}
+bind('resume-playlist',resumePlaylist);bind('subtitle-resume-playlist',resumePlaylist);
 let syncing=false;
 function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=p;$('transfer-detail').textContent=detail;}
 async function transferAsset(asset){

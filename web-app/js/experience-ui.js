@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from './experience-format.js?v=1.4.1';
+import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from './experience-format.js?v=1.4.2';
 export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>null,onDraft,transferAsset,isBusy,confirmAction=async()=>true}){
  const $=id=>document.getElementById(id);
  let current=structuredClone(DEFAULT_SETTINGS),runtime=null,remote=[],dirty=false,busy=false,reading=null,device=null;
@@ -12,7 +12,8 @@ export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>n
   const supported=ble.info?.capabilities?.includes('extras'),ready=ble.connected&&ble.authorized&&supported;
   document.querySelectorAll('[data-extra-action]').forEach(b=>b.disabled=!ready||busy||!!reading||isBusy()||ble.busy);
   $('extras-game-dino').disabled=!ready||busy||!!reading||isBusy()||ble.busy||!supportsDino(ble.info);
-  $('extras-dino-help').textContent=supportsDino(ble.info)?'小恐龍：輕觸立即跳躍、落地後可再跳；撞到後輕觸重玩。雙擊／三擊或「離開遊戲」返回原播放。熄屏第一下只喚醒；短按鎖定時先解鎖。':'小恐龍需要 C5 0.7.8 以上；不需要陀螺儀。更新韌體並連線授權後即可開始。';
+  const dinoRules=supportsDino(ble.info,9)?'距離計分，60 分起出現翼龍，每 100 分切換日夜；250 分達到最高 4 倍速。高空翼龍可站著通過，低空翼龍需跳過。':'';
+  $('extras-dino-help').textContent=supportsDino(ble.info)?'小恐龍：輕觸立即跳躍、落地後可再跳；撞到後輕觸重玩。'+dinoRules+'雙擊／三擊或「離開遊戲」返回原播放。熄屏第一下只喚醒；短按鎖定時先解鎖。':'小恐龍需要 C5 0.7.8 以上；日夜、翼龍與距離計分需 0.7.9。不需要陀螺儀，更新韌體並連線授權後即可開始。';
   $('extras-connection').textContent=!ble.connected?'手機先設定，連線後套用':!ble.authorized?'等待授權':!supported?'需要 C5 0.7.0 以上':'已連線，可使用玩法';
   $('extras-runtime').textContent=runtimeLabel(runtime);
   $('extras-lock-label').textContent=runtime?.touch_locked?'短按已鎖定，長按仍可操作':'短按可操作';

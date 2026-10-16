@@ -1,4 +1,4 @@
-import {validateSubtitle} from './subtitle-format.js?v=1.4.1';
+import {validateSubtitle} from './subtitle-format.js?v=1.4.2';
 export const WIDTH = 128, HEIGHT = 64, FRAME_BYTES = 1024, HEADER_BYTES = 21;
 
 export function crc32(bytes) {

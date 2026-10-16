@@ -38,4 +38,6 @@ test('runtime rejects impossible timers, nonfinite tilt and malformed state with
 test('dinosaur requires a compatible C5 firmware, including future versions',()=>{
  for(const firmware of ['0.7.8-c5','0.7.10-c5','0.8.0-c5','1.0.0-c5'])assert.equal(supportsDino({firmware}),true);
  for(const firmware of ['0.7.7-c5','0.6.99-c5','0.7.8-s3','bad',''])assert.equal(supportsDino({firmware}),false);
+ assert.equal(supportsDino({firmware:'0.7.8-c5'},9),false);
+ for(const firmware of ['0.7.9-c5','0.7.10-c5','0.8.0-c5'])assert.equal(supportsDino({firmware},9),true);
 });

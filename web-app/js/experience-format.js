@@ -1,5 +1,5 @@
 export const EVENTS=[['single','單擊'],['double','雙擊'],['triple','三擊'],['pickup','拿起'],['tilt_left','向左傾斜'],['tilt_right','向右傾斜'],['flip','倒拿翻轉'],['shake','來回搖晃']];
-export function supportsDino(info){const m=/^(\d+)\.(\d+)\.(\d+)-c5$/.exec(info?.firmware||'');return !!m&&(Number(m[1])>0||Number(m[2])>7||Number(m[2])===7&&Number(m[3])>=8);}
+export function supportsDino(info,minimumPatch=8){const m=/^(\d+)\.(\d+)\.(\d+)-c5$/.exec(info?.firmware||'');return !!m&&(Number(m[1])>0||Number(m[2])>7||Number(m[2])===7&&Number(m[3])>=minimumPatch);}
 export const DEFAULT_SETTINGS={version:1,tilt_enabled:true,greeting_enabled:true,auto_rotate:true,lock_on_boot:false,calibrated:false,low_battery_enabled:true,interrupt_media:false,
  axis_x:0,axis_y:2,sign_x:1,sign_y:1,sensitivity:.45,neutral:[0,1,0],brightness:160,dim_level:64,dim_s:15,off_s:60,deep_s:600,
  warn_mv:3400,sleep_mv:3200,resume_mv:3550,battery_offset_mv:0,rules:EVENTS.map(([event])=>({event,type:'default',id:''}))};

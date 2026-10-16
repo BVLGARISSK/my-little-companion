@@ -1,5 +1,5 @@
-import {encodeOLA,crc32} from './media.js?v=1.4.1';
-import {subtitleRuntime} from './subtitle-format.js?v=1.4.1';
+import {encodeOLA,crc32} from './media.js?v=1.4.2';
+import {subtitleRuntime} from './subtitle-format.js?v=1.4.2';
 export async function syncMetadata(asset,bytes=encodeOLA(asset.frames,asset.fps)){
  const hash=await crypto.subtle.digest('SHA-256',bytes);
  return {id:asset.id,kind:asset.kind,name:asset.name,length:bytes.length,crc32:crc32(bytes),sha256:Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join(''),...(asset.kind==='subtitle'?{subtitle:subtitleRuntime(asset.subtitle,asset.frames.length)}:{})};

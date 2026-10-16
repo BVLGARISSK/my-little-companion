@@ -1,4 +1,4 @@
-import {validatePlaylist} from './protocol.js?v=1.4.2';
+import {validatePlaylist} from './protocol.js?v=1.4.3';
 export function supportsPlaylistRead(info){const m=/^(\d+)\.(\d+)\.(\d+)-c5$/.exec(info?.firmware||'');return !!m&&(Number(m[1])>0||Number(m[2])>7||Number(m[2])===7&&Number(m[3])>=7);}
 export function animationFrameIndex(elapsed,fps,count,repeat=true){const index=Math.max(0,Math.floor(elapsed/1000*fps));return repeat===false?Math.min(index,count-1):index%count;}
 export function catalogItems(value,deviceId){
@@ -21,5 +21,6 @@ export function playbackLabel(value,assets){
  let text=value.tool?['','時鐘','計時器','骰子','迷宮','躲障礙','小恐龍'][value.tool]:value.media_id?(assets.find(a=>a.id===value.media_id)?.name||'裝置作品 '+value.media_id.slice(0,8)):(names[value.emotion]||'表情');
  if(!value.tool&&value.mode==='playlist')text=`清單第 ${value.playlist_index+1}／${value.playlist_count} 項 · ${text}`;
  else if(!value.tool&&value.mode==='auto')text='自動表情 · '+text;
+ if(value.subtitle_pinned===true&&!value.tool&&!value.temporary)text='固定字幕 · '+text;
  return `${value.sleeping?'休眠中 · ':''}${value.temporary?'插播中 · ':''}${text}`;
 }

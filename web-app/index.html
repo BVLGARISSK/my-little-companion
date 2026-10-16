@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#faf8f3"><meta name="description" content="OLED 吊飾控制與創作工具。預覽表情、編輯照片、繪製像素動畫，再同步播放清單。">
   <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=1.4.2"><title>小伴 · My Little Companion</title>
+  <link rel="stylesheet" href="./style.css?v=1.4.3"><title>小伴 · My Little Companion</title>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -127,8 +127,13 @@
           <label class="check"><input id="subtitle-face" type="checkbox">表情＋字幕</label>
           <label>搭配表情<select id="subtitle-emotion"><option value="neutral">平靜</option><option value="happy" selected>開心</option><option value="sad">難過</option><option value="surprised">驚訝</option><option value="sleepy">想睡</option><option value="angry">生氣</option></select></label>
           <label class="check"><input id="subtitle-keep-awake" type="checkbox">播放這個字幕時保持螢幕亮</label><p class="small">未勾選時，依吊飾「玩法」的關屏時間休眠，移動後接續播放。保持亮屏會增加耗電。</p>
-          <div class="button-row wrap"><button id="subtitle-save" class="button sage-button">存成字幕作品</button><button id="subtitle-send" class="button primary">傳送並播放</button><button id="subtitle-save-copy" class="button soft">另存新作品</button></div><p id="subtitle-save-status" class="small" role="status">儲存或傳送會加入作品集；完全相同的字幕會沿用原作品。</p>
-          <div class="divider"></div><button id="subtitle-resume-playlist" class="button soft" type="button">回到播放清單</button><p class="small">連線授權後，讓吊飾重新播放最後同步的清單。手機清單有修改時，請先到「播放」同步。</p>
+          <div class="divider"></div><h3>字幕播放方式</h3>
+          <button id="subtitle-send" class="button primary" type="button">固定播放這則字幕</button>
+          <p id="subtitle-fixed-status" class="small" role="status">固定播放會持續顯示這則字幕，動作與短按不會切換；原本的省電設定照常。</p>
+          <button id="subtitle-add-playlist" class="button sage-button" type="button">加入播放清單</button>
+          <p class="small">跟照片、動畫一起輪播。先加入手機清單，再到「播放」同步；加入時不會切換吊飾目前畫面。</p>
+          <div class="divider"></div><div class="button-row wrap"><button id="subtitle-save" class="button soft">存成字幕作品</button><button id="subtitle-save-copy" class="button soft">另存新作品</button></div><p id="subtitle-save-status" class="small" role="status">儲存或傳送會加入作品集；完全相同的字幕會沿用原作品。</p>
+          <div class="divider"></div><button id="subtitle-unpin" class="button soft" type="button" disabled>停止固定播放</button><button id="subtitle-resume-playlist" class="button soft" type="button">回到播放清單</button><p class="small">連線授權後，讓吊飾重新播放最後同步的清單。手機清單有修改時，請先到「播放」同步。</p>
         </div>
       </div></div>
     </section>
@@ -224,10 +229,10 @@
     </section>
   </main>
 </div>
-<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.4.2</span></footer>
+<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.4.3</span></footer>
 <div id="transfer-panel" class="transfer-panel" hidden><div class="section-title"><strong id="transfer-label">正在傳送作品…</strong><button id="cancel-transfer" class="button tiny">取消</button></div><progress id="transfer-progress" max="1" value="0"></progress><p id="transfer-detail" class="small"></p></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
 <dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
-<script type="module" src="./app.js?v=1.4.2"></script>
+<script type="module" src="./app.js?v=1.4.3"></script>
 </body></html>

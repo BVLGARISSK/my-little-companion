@@ -35,9 +35,14 @@ test('runtime rejects impossible timers, nonfinite tilt and malformed state with
  for(const invalid of [{...valid,tilt_x:NaN},{...valid,tool:7},{...valid,timer:{...valid.timer,paused:true}},{...valid,timer:{...valid.timer,active:true,finished:true}},{...valid,timer:{...valid.timer,remaining_s:86401}}])assert.throws(()=>validateRuntime(invalid));
 });
 
-test('dinosaur requires a compatible C5 firmware, including future versions',()=>{
- for(const firmware of ['0.7.8-c5','0.7.10-c5','0.8.0-c5','1.0.0-c5'])assert.equal(supportsDino({firmware}),true);
+test('dinosaur is limited to released game images or an explicit capability',()=>{
+ for(const firmware of ['0.7.8-c5','0.7.9-c5'])assert.equal(supportsDino({firmware}),true);
+ for(const firmware of ['0.7.10-c5','0.8.0-c5','1.0.0-c5']){
+  assert.equal(supportsDino({firmware}),false);
+  assert.equal(supportsDino({firmware,capabilities:['dino']}),true);
+ }
  for(const firmware of ['0.7.7-c5','0.6.99-c5','0.7.8-s3','bad',''])assert.equal(supportsDino({firmware}),false);
  assert.equal(supportsDino({firmware:'0.7.8-c5'},9),false);
- for(const firmware of ['0.7.9-c5','0.7.10-c5','0.8.0-c5'])assert.equal(supportsDino({firmware},9),true);
+ assert.equal(supportsDino({firmware:'0.7.9-c5'},9),true);
+ for(const firmware of ['0.7.10-c5','0.8.0-c5'])assert.equal(supportsDino({firmware,capabilities:['dino']},9),true);
 });

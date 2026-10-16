@@ -63,7 +63,7 @@ function flowContext(){
  const d=dom(),handlers={},calls=[];const ctx={...d,...playlist,validatePlaylist,structuredClone,Set,Map,Error,Number,JSON,Math,
   state:{assets:[],playlist:empty()},syncing:false,resetBusy:false,playlistReturning:false,playlistReading:false,playbackReading:false,
   bind:(id,f)=>{handlers[id]=f;},setInterval:()=>{},$:id=>d.document.getElementById(id),
-  persist:()=>{},renderPlaylist:()=>{},updateAdminTools:()=>{},toast:()=>{},progressPanel:()=>{},refreshStorageAfterChange:async()=>{},requireSyncCapacity:()=>{},
+  persist:()=>{},renderPlaylist:()=>{},renderSubtitlePlaybackControls:()=>{},updateAdminTools:()=>{},toast:()=>{},progressPanel:()=>{},refreshStorageAfterChange:async()=>{},requireSyncCapacity:()=>{},
   confirmAction:async()=>true,playlistAssets:()=>[asset]};
  const ble={connected:true,authorized:true,connectionEpoch:1,pending:new Map(),info:{device_id:'device-a',firmware:'0.7.7-c5',capabilities:['playlist','media']},capability:()=>{},cancelRequested:false,busy:false,
   command:async(op)=>{calls.push(op);if(op==='LIST_MEDIA')return {items:[asset]};if(op==='GET_PLAYLIST')return {device_id:'device-a',revision:42,playlist:{version:1,mode:'loop',items:[item]}};return {device_id:'device-a',mode:'playlist',tool:0,temporary:false,sleeping:false,media_id:asset.id,playlist_index:0,playlist_count:1};},

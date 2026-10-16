@@ -1,19 +1,20 @@
-import {supportsPlaylistRead,animationFrameIndex,catalogItems,playlistResponse,playlistKey,playlistDifference,playbackLabel} from './js/playlist-device.js?v=1.4.2';
-import {setupExperience} from './js/experience-ui.js?v=1.4.2';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.4.2';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.4.2';
+import {supportsPlaylistRead,animationFrameIndex,catalogItems,playlistResponse,playlistKey,playlistDifference,playbackLabel} from './js/playlist-device.js?v=1.4.3';
+import {setupExperience} from './js/experience-ui.js?v=1.4.3';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.4.3';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.4.3';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.4.2';
+import {validatePlaylist} from './js/protocol.js?v=1.4.3';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.4.2';
-import {CompanionBLE} from './js/ble.js?v=1.4.2';
-import {batteryLabel} from './js/battery.js?v=1.4.2';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.4.2';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.4.3';
+import {CompanionBLE} from './js/ble.js?v=1.4.3';
+import {batteryLabel} from './js/battery.js?v=1.4.3';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.4.3';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.4.2';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.4.3';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.4.2';
-import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.4.2';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.4.3';
+import {createSubtitlePlayback,addSubtitleToPlaylistDraft} from './js/subtitle-playback.js?v=1.4.3';
+import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.4.3';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -23,7 +24,9 @@ let state={version:1,assets:[],playlist:{version:1,name:'My little day',mode:'lo
 let undo=[],redo=[],tool='pen',drawing=false,lastPoint=null,dragIndex=null;
 let subtitlePreview=null,subtitleStarted=0,subtitleTimer,subtitlePositionVersion=2;
 let experienceUI;
-let playlistReading=false,playbackReading=false;
+let playlistReading=false,playbackReading=false,syncing=false,playlistReturning=false,resetBusy=false;
+let subtitlePinned=false,pinnedDevice=null;
+const subtitlePlayback=createSubtitlePlayback({ble,transferAsset,onBusy:()=>renderSubtitlePlaybackControls()});
 const converter=new MediaConverter($('source-video'));
 const nameOf=item=>item.type==='emotion'?EMOTIONS.find(e=>e.id===item.id)?.name:playlistAssets().find(a=>a.id===item.id)?.name;
 const formatBytes=n=>Number.isFinite(n)?n>=1048576?(n/1048576).toFixed(2)+' MiB':(n/1024).toFixed(1)+' KiB':'—';
@@ -85,7 +88,7 @@ function updateSubtitle(save=false){
   const editing=state.assets.find(asset=>asset.id===state.subtitleEditingId&&asset.kind==='subtitle');
   $('subtitle-save').textContent=editing?'更新字幕作品':'存成字幕作品';
   $('subtitle-save-status').textContent=editing?`正在編輯「${editing.name}」。儲存或傳送會更新這一件；要保留原版，請選「另存新作品」。`:'儲存或傳送會加入作品集；完全相同的字幕會沿用原作品。';
-  $('subtitle-save').disabled=!subtitlePreview;$('subtitle-save-copy').disabled=!subtitlePreview;$('subtitle-send').disabled=!subtitlePreview;
+  $('subtitle-save').disabled=!subtitlePreview;$('subtitle-save-copy').disabled=!subtitlePreview;renderSubtitlePlaybackControls();
 }
 function saveSubtitle(copy=false){
   if(!subtitlePreview)throw new Error('請先修正字幕設定。');
@@ -102,7 +105,30 @@ for(const id of ['text','font-size','font-family','bold','writing','align','x','
 bind('subtitle-position-reset',()=>{clearTimeout(subtitleTimer);$('subtitle-x').value=0;$('subtitle-y').value=0;updateSubtitle(true);});
 bind('subtitle-save',()=>{clearTimeout(subtitleTimer);updateSubtitle();const {action}=saveSubtitle();toast(action==='reused'?'字幕已存在，沿用原作品。':action==='updated'?'字幕作品已更新，沒有新增副本。':'字幕已存進作品集，可傳送或加入播放清單。');});
 bind('subtitle-save-copy',()=>{clearTimeout(subtitleTimer);updateSubtitle();saveSubtitle(true);toast('已另存新作品，原字幕保留。');});
-bind('subtitle-send',async()=>{if(syncing)throw new Error('正在同步，請稍後再傳送。');ble.capability('subtitle');clearTimeout(subtitleTimer);updateSubtitle();const {asset}=saveSubtitle();await transferAsset(asset);await ble.command('PLAY_MEDIA',{id:asset.id},'subtitle');toast('字幕已存進吊飾並開始播放。');});
+bind('subtitle-send',async()=>{
+  if(syncing||resetBusy)throw new Error('正在處理裝置操作，請稍候。');ble.capability('subtitle_pin');
+  clearTimeout(subtitleTimer);updateSubtitle();const {asset}=saveSubtitle();
+  await subtitlePlayback.pin(asset);subtitlePinned=true;pinnedDevice=ble.info.device_id;
+  renderSubtitlePlaybackControls();toast('已固定播放這則字幕，動作與短按不會切換。');await refreshPlayback();
+});
+bind('subtitle-add-playlist',()=>{
+  clearTimeout(subtitleTimer);updateSubtitle();const {asset}=saveSubtitle();
+  const result=addSubtitleToPlaylistDraft(state.playlist,asset);persist(true);renderPlaylist();
+  toast(result.added?'已加入手機播放清單；到「播放」同步後，吊飾清單才會更新。':`字幕已在手機清單第 ${result.index+1} 項，不會重複加入。`);
+});
+bind('subtitle-unpin',async()=>{
+  const result=await subtitlePlayback.stop();subtitlePinned=false;pinnedDevice=null;renderSubtitlePlaybackControls();
+  toast(result.mode==='playlist'?'已停止固定字幕，回到吊飾播放清單。':'已停止固定字幕；目前沒有可播放清單，回到自動表情。');await refreshPlayback();
+});
+function renderSubtitlePlaybackControls(){
+  const ready=ble.connected&&ble.authorized,supported=ble.info?.capabilities?.includes('subtitle_pin')===true;
+  const busy=syncing||resetBusy||ble.busy||playlistReading||playlistReturning||subtitlePlayback.busy;
+  $('subtitle-send').disabled=!subtitlePreview||!ready||!supported||busy;
+  $('subtitle-add-playlist').disabled=!subtitlePreview;
+  $('subtitle-unpin').disabled=!ready||!supported||busy||!subtitlePinned||pinnedDevice!==ble.info?.device_id;
+  $('subtitle-fixed-status').textContent=ready&&!supported?'固定播放需要支援此功能的新版 C5 韌體；加入播放清單可先在手機操作。':subtitlePinned&&pinnedDevice===ble.info?.device_id?'目前固定播放中。要切換內容，請主動停止或回到播放清單。':'固定播放會持續顯示這則字幕，動作與短按不會切換；原本的省電設定照常。';
+}
+
 bind('subtitle-import',()=>$('subtitle-file').click());
 bind('subtitle-name',()=>{state.subtitleDraft={...subtitleDraft(),name:$('subtitle-name').value};persist();},'input');
 bind('subtitle-file',async e=>{
@@ -279,7 +305,7 @@ bind('playlist-preview',()=>{if(!state.playlist.items.some(i=>i.enabled))throw n
 const browserSupported=!!navigator.bluetooth&&isSecureContext;
 $('browser-help').innerHTML=browserSupported?'這個瀏覽器可以使用藍牙。開啟吊飾後，按下方按鈕選擇小夥伴。':'iPhone 請用 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> 開啟這個網址。現在也可以先畫畫、做作品，再連線同步。';
 let pairingKey=null,pairingDevice=null,pairingURL=null,pairingRevision=0,authorizationCount=0,connecting=false;
-let ownerURL=null,resetBusy=false,pendingReset=null;
+let ownerURL=null,pendingReset=null;
 let powerDirty=false,powerRefresh=null;
 let storageRefreshing=false;
 function updateStorageControls(){
@@ -428,7 +454,7 @@ ble.addEventListener('state',e=>{
   const {connected,authorized,role,info}=e.detail;$('connect-label').textContent=connected?'小伴已連線':'連接小夥伴';$('connection-dot').classList.toggle('connected',connected);$('device-state').textContent=authorized?(role==='admin'?'管理員已授權':'已授權'):connected?'等待授權':'尚未連線';$('auth-area').hidden=!connected||authorized;$('disconnect-device').disabled=!connected;$('info-name').textContent=info?.name||ble.device?.name||(connected?'小伴':'等待連線');
   $('info-battery').textContent=batteryLabel(info);$('battery-note').hidden=batteryLabel(info)==='—';renderStorageInfo(info);renderRamInfo(info);$('info-firmware').textContent=info?.firmware||'—';
   $('info-usb').textContent=usbHostLabel(info);$('info-charging').textContent=chargingLabel(info);$('power-note').hidden=!connected;
-  $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected){$('remote-library').replaceChildren();$('playback-current').textContent='尚未連線';}renderPlaylistStatus();
+  $('emotion-hint').textContent=authorized?'選好表情後，按上方按鈕套用到吊飾。':'先預覽，連線後再套用到吊飾。';if(!connected){subtitlePinned=false;pinnedDevice=null;$('remote-library').replaceChildren();$('playback-current').textContent='尚未連線';}renderPlaylistStatus();
   if(!connected||role!=='admin')clearOwnerQR();updateAdminTools();updatePowerControls();
 });ble.addEventListener('error',e=>toast(e.detail.message,true));
 async function refreshBatteryInfo(){
@@ -461,7 +487,7 @@ bind('factory-reset',async()=>{
   finally{resetBusy=false;updateAdminTools();}
 });
 bind('brightness-apply',async()=>{await ble.command('SET_BRIGHTNESS',{value:Number($('device-brightness').value)},'brightness');toast('亮度已調整。');});
-let playlistReturning=false;
+
 async function resumePlaylist(){
   if(playlistReturning||syncing||resetBusy||ble.busy)throw new Error('請等目前的作品傳送或裝置操作完成。');
   playlistReturning=true;for(const id of ['resume-playlist','subtitle-resume-playlist'])$(id).disabled=true;
@@ -470,7 +496,7 @@ async function resumePlaylist(){
   finally{playlistReturning=false;renderPlaylistStatus();}
 }
 bind('resume-playlist',resumePlaylist);bind('subtitle-resume-playlist',resumePlaylist);
-let syncing=false;
+
 function progressPanel(label,p,detail){$('transfer-panel').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=p;$('transfer-detail').textContent=detail;}
 async function transferAsset(asset){
   if(syncing)throw new Error('正在同步，請等這次傳送完成。');
@@ -489,6 +515,7 @@ function renderPlaylistStatus(){
   $('playlist-draft-status').textContent=match&&ready?'這份草稿與上次讀取／同步的清單相同；同步前仍會核對吊飾。':'手機清單草稿 · 尚未確認與吊飾相同';
   $('playlist-undo-read').disabled=!state.playlistUndo||playlistReading||syncing;
   for(const id of ['sync-playlist','brightness-apply','resume-playlist','subtitle-resume-playlist','refresh-remote','subtitle-send','emotion-apply'])$(id).disabled=!ready||syncing||resetBusy||ble.busy||playlistReading||playlistReturning;
+  renderSubtitlePlaybackControls();
 }
 function assertConnection(epoch,id){if(!ble.connected||!ble.authorized||ble.connectionEpoch!==epoch||ble.info?.device_id!==id)throw new Error('連線已改變，請重新操作。');}
 async function readDevicePlaylist(){
@@ -500,7 +527,7 @@ async function readDevicePlaylist(){
 async function refreshPlayback(){
   if(document.hidden||!ble.connected||!ble.authorized||!supportsPlaylistRead(ble.info)||playbackReading||playlistReading||syncing||resetBusy||ble.busy||ble.pending.size)return;
   const epoch=ble.connectionEpoch,id=ble.info.device_id;playbackReading=true;
-  try{const value=await ble.command('GET_PLAYBACK',{},'playlist');assertConnection(epoch,id);if(value.device_id!==id)throw new Error('播放狀態來自其他裝置。');$('playback-current').textContent=playbackLabel(value,playlistAssets());$('playback-updated').textContent='剛剛更新 · 約每 5 秒讀取';}
+  try{const value=await ble.command('GET_PLAYBACK',{},'playlist');assertConnection(epoch,id);if(value.device_id!==id)throw new Error('播放狀態來自其他裝置。');subtitlePinned=value.subtitle_pinned===true;pinnedDevice=id;renderSubtitlePlaybackControls();$('playback-current').textContent=playbackLabel(value,playlistAssets());$('playback-updated').textContent='剛剛更新 · 約每 5 秒讀取';}
   catch(error){if(ble.connectionEpoch===epoch){$('playback-updated').textContent='狀態可能已變更，請按更新重試';}throw error;}
   finally{playbackReading=false;renderPlaylistStatus();}
 }
@@ -533,7 +560,7 @@ bind('sync-playlist',async()=>{
       if(missing.length&&snapshot.playlistDevice!==id)throw new Error('這份草稿包含另一台吊飾的作品。請先讀取目前吊飾清單，或匯入完整作品備份。');
       for(const item of missing)if(!remote.catalog.some(a=>a.id===item.id&&a.kind===item.type))throw new Error('吊飾上的作品已刪除或變更，請重新讀取清單。');
       const diff=playlistDifference(remote.playlist,snapshot.playlist);
-      const detail=snapshot.playlist.items.length?`吊飾目前 ${remote.playlist.items.length} 項，更新後 ${snapshot.playlist.items.length} 項；新增 ${diff.added} 項、移除 ${diff.removed} 項。${diff.changed?'順序、秒數、啟用狀態與播放方式將依手機草稿更新。':'清單相同；仍會核對並更新作品內容。'}同步後會重新開始播放。作品檔案不會因移除清單項目而被刪除。`:'會清空吊飾播放清單並回到自動表情。照片、動畫、字幕與授權碼都會保留。';
+      const detail=snapshot.playlist.items.length?`吊飾目前 ${remote.playlist.items.length} 項，更新後 ${snapshot.playlist.items.length} 項；新增 ${diff.added} 項、移除 ${diff.removed} 項。${diff.changed?'順序、秒數、啟用狀態與播放方式將依手機草稿更新。':'清單相同；仍會核對並更新作品內容。'}同步後會重新開始播放；固定字幕播放中會繼續顯示，按「回到播放清單」才輪播。作品檔案不會因移除清單項目而被刪除。`:'會清空吊飾播放清單；固定字幕播放中會維持，其他模式回到自動表情。照片、動畫、字幕與授權碼都會保留。';
       if(!await confirmAction('確認同步到吊飾？',detail,'同步並播放'))return;
     }else{
       if(!snapshot.playlist.items.length)throw new Error('清空吊飾清單需要 C5 0.7.7 以上。');
@@ -548,7 +575,7 @@ bind('sync-playlist',async()=>{
     assertConnection(epoch,id);if(ble.cancelRequested)throw new Error('已取消同步');progressPanel('儲存播放清單',.95,'正在確認清單…');
     const result=await ble.request('SET_PLAYLIST',{playlist:snapshot.playlist,...(expected_revision===undefined?{}:{expected_revision})},30000);assertConnection(epoch,id);
     state.playlistSynced={deviceId:id,key:playlistKey(snapshot.playlist)};persist(true);
-    toast(result.started===false?'清單已儲存，但暫時無法開始播放，請檢查 RAM 與作品。':snapshot.playlist.items.length?'清單已同步並重新開始播放。':'吊飾清單已清空，已回到自動表情。',result.started===false);
+    toast(result.subtitle_pinned?'清單已同步，固定字幕繼續播放；按「回到播放清單」才輪播。':result.started===false?'清單已儲存，但暫時無法開始播放，請檢查 RAM 與作品。':snapshot.playlist.items.length?'清單已同步並重新開始播放。':'吊飾清單已清空，已回到自動表情。',result.started===false&&!result.subtitle_pinned);
   }finally{syncing=false;updateAdminTools();$('sync-playlist').disabled=false;$('transfer-panel').hidden=true;renderPlaylistStatus();await refreshStorageAfterChange();await refreshPlayback().catch(()=>{});}
 });
 bind('refresh-remote',async()=>{

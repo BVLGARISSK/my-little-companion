@@ -1,4 +1,5 @@
 export const EVENTS=[['single','單擊'],['double','雙擊'],['triple','三擊'],['pickup','拿起'],['tilt_left','向左傾斜'],['tilt_right','向右傾斜'],['flip','倒拿翻轉'],['shake','來回搖晃']];
+export function supportsDino(info){const m=/^(\d+)\.(\d+)\.(\d+)-c5$/.exec(info?.firmware||'');return !!m&&(Number(m[1])>0||Number(m[2])>7||Number(m[2])===7&&Number(m[3])>=8);}
 export const DEFAULT_SETTINGS={version:1,tilt_enabled:true,greeting_enabled:true,auto_rotate:true,lock_on_boot:false,calibrated:false,low_battery_enabled:true,interrupt_media:false,
  axis_x:0,axis_y:2,sign_x:1,sign_y:1,sensitivity:.45,neutral:[0,1,0],brightness:160,dim_level:64,dim_s:15,off_s:60,deep_s:600,
  warn_mv:3400,sleep_mv:3200,resume_mv:3550,battery_offset_mv:0,rules:EVENTS.map(([event])=>({event,type:'default',id:''}))};
@@ -29,12 +30,12 @@ export function timerFields({mode='countdown',minutes=5,focus=25,rest=5,longRest
 }
 export function runtimeLabel(value){
  if(!value)return '連線並授權後，讀取吊飾目前狀態。';
- const t=value.timer,tools=['原播放','時鐘','計時器','骰子','迷宮','躲障礙'];
+ const t=value.timer,tools=['原播放','時鐘','計時器','骰子','迷宮','躲障礙','小恐龍'];
  return `${value.touch_locked?'觸摸已鎖定':'觸摸可操作'} · ${tools[value.tool]||'未知模式'}${t?.active?` · ${t.paused?'暫停':'剩餘'} ${t.remaining_s} 秒`:t?.finished?' · 計時完成':''}${value.critical_battery?' · 低電壓休眠':value.low_battery?' · 低電量提醒':''}`;
 }
 export function validateRuntime(value){
  const bool=['touch_locked','calibration_needed','settings_recovered','upside_down','low_battery','critical_battery','clock_valid'];
  const t=value?.timer,integer=(v,lo,hi)=>Number.isSafeInteger(v)&&v>=lo&&v<=hi;
- if(!value||bool.some(k=>typeof value[k]!=='boolean')||!integer(value.tool,0,5)||!integer(value.events_fired,0,4294967295)||!integer(value.epoch_ms,0,4102444800000)||!integer(value.offset_min,-720,840)||['tilt_x','tilt_y'].some(k=>!Number.isFinite(value[k])||Math.abs(value[k])>1)||!t||['active','paused','finished','pomodoro'].some(k=>typeof t[k]!=='boolean')||!integer(t.phase,0,2)||!integer(t.round,1,8)||!integer(t.rounds,1,8)||t.round>t.rounds||!integer(t.remaining_s,0,86400)||t.paused&&!t.active||t.finished&&t.active)throw new Error('吊飾玩法狀態無效，請重新讀取。');
+ if(!value||bool.some(k=>typeof value[k]!=='boolean')||!integer(value.tool,0,6)||!integer(value.events_fired,0,4294967295)||!integer(value.epoch_ms,0,4102444800000)||!integer(value.offset_min,-720,840)||['tilt_x','tilt_y'].some(k=>!Number.isFinite(value[k])||Math.abs(value[k])>1)||!t||['active','paused','finished','pomodoro'].some(k=>typeof t[k]!=='boolean')||!integer(t.phase,0,2)||!integer(t.round,1,8)||!integer(t.rounds,1,8)||t.round>t.rounds||!integer(t.remaining_s,0,86400)||t.paused&&!t.active||t.finished&&t.active)throw new Error('吊飾玩法狀態無效，請重新讀取。');
  return structuredClone(value);
 }

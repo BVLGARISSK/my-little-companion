@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from './experience-format.js?v=1.4.0';
+import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from './experience-format.js?v=1.4.1';
 export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>null,onDraft,transferAsset,isBusy,confirmAction=async()=>true}){
  const $=id=>document.getElementById(id);
  let current=structuredClone(DEFAULT_SETTINGS),runtime=null,remote=[],dirty=false,busy=false,reading=null,device=null;
@@ -11,6 +11,8 @@ export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>n
  function controls(){
   const supported=ble.info?.capabilities?.includes('extras'),ready=ble.connected&&ble.authorized&&supported;
   document.querySelectorAll('[data-extra-action]').forEach(b=>b.disabled=!ready||busy||!!reading||isBusy()||ble.busy);
+  $('extras-game-dino').disabled=!ready||busy||!!reading||isBusy()||ble.busy||!supportsDino(ble.info);
+  $('extras-dino-help').textContent=supportsDino(ble.info)?'小恐龍：輕觸立即跳躍、落地後可再跳；撞到後輕觸重玩。雙擊／三擊或「離開遊戲」返回原播放。熄屏第一下只喚醒；短按鎖定時先解鎖。':'小恐龍需要 C5 0.7.8 以上；不需要陀螺儀。更新韌體並連線授權後即可開始。';
   $('extras-connection').textContent=!ble.connected?'手機先設定，連線後套用':!ble.authorized?'等待授權':!supported?'需要 C5 0.7.0 以上':'已連線，可使用玩法';
   $('extras-runtime').textContent=runtimeLabel(runtime);
   $('extras-lock-label').textContent=runtime?.touch_locked?'短按已鎖定，長按仍可操作':'短按可操作';
@@ -77,6 +79,7 @@ export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>n
  bind('extras-sync-time',async()=>{await run('SET_TIME',{epoch_ms:Date.now(),offset_min:-new Date().getTimezoneOffset()});toast('手機時間已同步到吊飾。');});
  bind('extras-show-clock',()=>run('CLOCK',{enabled:true}));bind('extras-return',()=>run('CLOCK',{enabled:false}));
  for(const game of ['dice','maze','dodge'])bind('extras-game-'+game,()=>run('GAME',{game}));bind('extras-game-stop',()=>run('GAME',{game:'none'}));
+ bind('extras-game-dino',()=>{if(!supportsDino(ble.info))throw new Error('小恐龍需要 C5 0.7.8 以上，請先更新韌體。');return run('GAME',{game:'dino'});});
  bind('extras-timer-start',()=>run('TIMER',timerFields({mode:$('extras-timer-mode').value,minutes:$('extras-timer-minutes').value,focus:$('extras-focus-minutes').value,rest:$('extras-break-minutes').value,longRest:$('extras-long-minutes').value,rounds:$('extras-rounds').value})));
  for(const action of ['pause','resume','cancel'])bind('extras-timer-'+action,()=>run('TIMER',{action}));
  $('extras-preset').onchange=()=>{const preset=PRESETS[$('extras-preset').value];if(preset){let d;try{d=form();}catch{d=structuredClone(current);}Object.assign(d,preset);fill(d);changed();}};

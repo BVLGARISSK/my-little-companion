@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_SETTINGS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel} from '../web-app/js/experience-format.js';
+import {DEFAULT_SETTINGS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from '../web-app/js/experience-format.js';
 
 test('all presets maintain ordered sleep timings and retain zero as disabled',()=>{
  for(const preset of Object.values(PRESETS))assert.doesNotThrow(()=>validateSettings({...structuredClone(DEFAULT_SETTINGS),...preset}));
@@ -31,5 +31,11 @@ test('runtime labels distinguish stopped, paused, locked and critical states',()
 test('runtime rejects impossible timers, nonfinite tilt and malformed state without modifying input',()=>{
  const valid={touch_locked:false,calibration_needed:true,settings_recovered:false,upside_down:false,low_battery:false,critical_battery:false,clock_valid:false,epoch_ms:0,offset_min:480,tool:0,tilt_x:0,tilt_y:0,events_fired:0,timer:{active:false,paused:false,finished:false,pomodoro:false,phase:0,round:1,rounds:4,remaining_s:0}};
  assert.deepEqual(validateRuntime(valid),valid);assert.notEqual(validateRuntime(valid),valid);
- for(const invalid of [{...valid,tilt_x:NaN},{...valid,tool:6},{...valid,timer:{...valid.timer,paused:true}},{...valid,timer:{...valid.timer,active:true,finished:true}},{...valid,timer:{...valid.timer,remaining_s:86401}}])assert.throws(()=>validateRuntime(invalid));
+ assert.equal(validateRuntime({...valid,tool:6}).tool,6);assert.match(runtimeLabel({...valid,tool:6}),/小恐龍/);
+ for(const invalid of [{...valid,tilt_x:NaN},{...valid,tool:7},{...valid,timer:{...valid.timer,paused:true}},{...valid,timer:{...valid.timer,active:true,finished:true}},{...valid,timer:{...valid.timer,remaining_s:86401}}])assert.throws(()=>validateRuntime(invalid));
+});
+
+test('dinosaur requires a compatible C5 firmware, including future versions',()=>{
+ for(const firmware of ['0.7.8-c5','0.7.10-c5','0.8.0-c5','1.0.0-c5'])assert.equal(supportsDino({firmware}),true);
+ for(const firmware of ['0.7.7-c5','0.6.99-c5','0.7.8-s3','bad',''])assert.equal(supportsDino({firmware}),false);
 });

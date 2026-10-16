@@ -109,3 +109,16 @@ test('edits made while settings are being saved remain as an unsent draft',async
  document.getElementById('extras-off_s').value='150';document.getElementById('extras-off_s').handlers.input();await finish();await saving;
  assert.equal(e.last().saved.off_s,150);assert.equal(e.last().meta.dirty,true);assert.equal(document.getElementById('extras-off_s').value,'150');
 });
+
+test('dinosaur blocks old firmware and sends GAME dino only on compatible devices',async()=>{
+ const e=experience();await document.getElementById('extras-game-dino').onclick();assert.equal(e.calls.length,0);assert.equal(document.getElementById('extras-game-dino').disabled,true);
+ e.ble.info.firmware='0.7.8-c5';e.ui.controls();assert.equal(document.getElementById('extras-game-dino').disabled,false);
+ const original=e.ble.command;let command;e.ble.command=async(op,fields)=>{command={op,fields};return original(op,fields);};
+ await document.getElementById('extras-game-dino').onclick();assert.deepEqual(command,{op:'GAME',fields:{game:'dino'}});
+ e.ble.connected=false;e.ui.controls();assert.equal(document.getElementById('extras-game-dino').disabled,true);
+});
+
+test('currently playing recognizes dinosaur and rejects unknown tools',()=>{
+ const value={mode:'emotion',tool:6,sleeping:false,temporary:false};assert.equal(playlist.playbackLabel(value,[]),'小恐龍');
+ assert.throws(()=>playlist.playbackLabel({...value,tool:7},[]));
+});

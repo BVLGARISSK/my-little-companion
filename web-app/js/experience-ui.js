@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from './experience-format.js?v=1.4.3';
+import {DEFAULT_SETTINGS,EVENTS,PRESETS,validateSettings,validateRuntime,timerFields,runtimeLabel,supportsDino} from './experience-format.js?v=1.4.4';
 export function setupExperience({ble,toast,getAssets,getDraft,getDraftMeta=()=>null,onDraft,transferAsset,isBusy,confirmAction=async()=>true}){
  const $=id=>document.getElementById(id);
  let current=structuredClone(DEFAULT_SETTINGS),runtime=null,remote=[],dirty=false,busy=false,reading=null,device=null;

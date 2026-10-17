@@ -1,4 +1,4 @@
-import {validatePlaylist} from './protocol.js?v=1.4.3';
+import {validatePlaylist} from './protocol.js?v=1.4.4';
 export function supportsPlaylistRead(info){const m=/^(\d+)\.(\d+)\.(\d+)-c5$/.exec(info?.firmware||'');return !!m&&(Number(m[1])>0||Number(m[2])>7||Number(m[2])===7&&Number(m[3])>=7);}
 export function animationFrameIndex(elapsed,fps,count,repeat=true){const index=Math.max(0,Math.floor(elapsed/1000*fps));return repeat===false?Math.min(index,count-1):index%count;}
 export function catalogItems(value,deviceId){

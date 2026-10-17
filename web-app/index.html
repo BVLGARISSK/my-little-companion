@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#faf8f3"><meta name="description" content="OLED 吊飾控制與創作工具。預覽表情、編輯照片、繪製像素動畫，再同步播放清單。">
   <link rel="icon" href="./assets/companion.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=1.4.3"><title>小伴 · My Little Companion</title>
+  <link rel="stylesheet" href="./style.css?v=1.4.4"><title>小伴 · My Little Companion</title>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -186,10 +186,10 @@
     <section id="view-device" class="view" hidden>
       <div class="page-heading"><div><p class="eyebrow">DEVICE &amp; SETTINGS</p><h1>連線與設定。</h1><p>先把作品準備好，開啟吊飾後再連線。</p></div></div>
       <div id="pairing-setup" class="card sage-card" hidden>
-        <h2>掃碼配對已準備好</h2><p id="pairing-message"></p>
+        <h2>配對與手機連線</h2><p id="pairing-message"></p>
         <div id="pairing-handoff" hidden>
           <div class="button-row wrap"><button id="copy-pairing-link" class="button primary">複製配對網址</button><a class="button soft" href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">安裝／開啟 Bluefy</a></div>
-          <p class="small">網址包含這台吊飾的配對資訊；貼上後，重新開啟吊飾並在 5 分鐘內連線。</p>
+          <p class="small" id="pairing-link-note">網址包含這台吊飾的配對資訊；貼上後，重新開啟吊飾並在 5 分鐘內連線。</p>
           <label id="pairing-link-fallback" hidden>長按複製完整配對網址<input id="pairing-link" type="text" readonly autocomplete="off" spellcheck="false" aria-label="完整配對網址"></label>
         </div>
       </div>
@@ -229,10 +229,10 @@
     </section>
   </main>
 </div>
-<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.4.3</span></footer>
+<footer class="site-footer"><a href="./manual/" target="_blank" rel="noopener">使用說明書 ↗</a><span>小伴 web · v1.4.4</span></footer>
 <div id="transfer-panel" class="transfer-panel" hidden><div class="section-title"><strong id="transfer-label">正在傳送作品…</strong><button id="cancel-transfer" class="button tiny">取消</button></div><progress id="transfer-progress" max="1" value="0"></progress><p id="transfer-detail" class="small"></p></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="confirm-dialog"><h3 id="confirm-title">確認刪除？</h3><p id="confirm-text"></p><div class="button-row"><button id="confirm-no" class="button soft">先留著</button><button id="confirm-yes" class="button primary">確定刪除</button></div></dialog>
 <dialog id="asset-dialog"><div class="section-title"><h3 id="asset-dialog-name"></h3><button id="asset-dialog-close" class="button tiny" aria-label="關閉作品預覽">✕</button></div><canvas id="asset-dialog-canvas" class="oled-preview" width="512" height="256" aria-label="作品預覽"></canvas><p id="asset-dialog-info" class="small"></p><div class="button-row wrap"><button id="asset-send" class="button primary">傳送給小伴</button><button id="asset-play-device" class="button soft">在吊飾播放</button><button id="asset-export" class="button soft">下載 OLA</button><button id="asset-to-pixel" class="button soft">繼續畫畫</button></div></dialog>
-<script type="module" src="./app.js?v=1.4.3"></script>
+<script type="module" src="./app.js?v=1.4.4"></script>
 </body></html>

@@ -7,7 +7,7 @@
   <meta name="description" content="小伴 OLED 吊飾線上使用說明：掃碼配對、作品、字幕、觸摸互動、遊戲、計時與省電。">
   <link rel="canonical" href="https://quadcopteronline.org/manual/">
   <link rel="icon" href="../assets/companion.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./manual.css?v=1.0.0">
+  <link rel="stylesheet" href="./manual.css?v=1.1.0">
   <title>小伴使用說明書</title>
 </head>
 <body>
@@ -21,7 +21,7 @@
     <p class="eyebrow">A LITTLE GUIDE FOR YOUR COMPANION</p>
     <h1 id="manual-title">小伴使用說明書<span class="title-dot" aria-hidden="true">。</span></h1>
     <p class="intro">從第一次連線，到放進喜歡的照片與文字，<br class="desktop-break">慢慢把小伴變成你的樣子。</p>
-    <p class="meta">XIAO ESP32-C5 版 · 適用 0.7.x 韌體<br>說明書 1.6 · 更新於 <time datetime="2026-10-16">2026 年 10 月 16 日</time></p>
+    <p class="meta">XIAO ESP32-C5 版 · 適用 0.7.x 韌體<br>說明書 1.7 · 更新於 <time datetime="2026-10-17">2026 年 10 月 17 日</time></p>
     <div class="hero-actions"><a class="button primary" href="#first-use">第一次使用</a><a class="button soft" href="#share">儲存說明書 QR</a></div>
     <p class="update-note">這份線上說明會持續更新。同一張說明書 QR，可以再次開啟這個網址查看新版。</p>
   </section>
@@ -32,8 +32,8 @@
     <!-- 更新說明內容時，編輯以下 article；保留 /manual/ 網址與章節 id，舊 QR 與連結仍可使用。 -->
     <article class="guide-content">
       <section class="guide-section" id="first-use"><p class="section-number">01 · GET STARTED</p><h2>開始使用與配對</h2>
-        <div class="notice"><strong>先準備吊飾的專屬配對卡。</strong><p>目前這張「說明書 QR」供閱讀操作指南。控制吊飾時，請掃描隨吊飾附上的「一般配對 QR」，讓控制頁帶入該台裝置的授權碼。</p></div>
-        <ol class="steps"><li><strong>在手機開啟配對網址</strong><p>iPhone 請先安裝 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a>。掃描吊飾配對卡；若先進入 Safari，按「複製配對網址」，再把完整網址貼進 Bluefy。Android 可使用支援 Web Bluetooth 的 Chrome。</p></li><li><strong>開啟吊飾，尋找小夥伴</strong><p>開啟手機藍牙與瀏覽器的藍牙權限，在吊飾開機後 5 分鐘內，按「尋找小夥伴」，選擇 <b>Little Companion C5</b>。逾時可長按觸摸區約 2 秒，重新開放連線。</p></li><li><strong>確認授權，開始創作</strong><p>看到「已授權」即可控制。「記住這台吊飾的授權碼」勾選後，成功授權會記住在目前瀏覽器；下次開控制頁再尋找裝置即可。傳送時保持網頁在前景，等完成後再離開。</p></li></ol>
+        <div class="notice"><strong>配對網址在哪裡複製？</strong><p>「複製配對網址」按鈕在<strong>控制頁 → 裝置 → 配對與手機連線</strong>，掃描吊飾的專屬配對 QR 後就會出現，授權成功後也會保留。這份公開說明書沒有每台吊飾的授權碼。</p><div class="button-row pairing-actions"><a class="button primary" id="open-pairing-controls" href="../#device">前往裝置連線頁</a><button class="button soft" id="copy-control-url" type="button">複製控制頁網址</button></div><p class="small">已在 Bluefy 記住授權碼的手機，可直接開控制頁再連線；第一次使用仍請掃描隨吊飾附上的專屬配對 QR。</p><p class="copy-status small" id="control-copy-status" role="status" aria-live="polite"></p><label class="control-link-fallback" id="control-link-fallback" hidden>長按複製控制頁網址<input id="control-link" type="url" readonly autocomplete="off" spellcheck="false" aria-label="控制頁網址"></label></div>
+        <ol class="steps"><li><strong>在手機開啟配對網址</strong><p>iPhone 請先安裝 <a href="https://apps.apple.com/tw/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a>。掃描吊飾的專屬配對卡後，會進入控制頁的「裝置」分頁並自動填入授權碼。若先用 Safari 開啟，請在該控制頁上方的「配對與手機連線」按「複製配對網址」，再把完整網址貼進 Bluefy。Android 可使用支援 Web Bluetooth 的 Chrome。</p></li><li><strong>開啟吊飾，尋找小夥伴</strong><p>開啟手機藍牙與瀏覽器的藍牙權限，在吊飾開機後 5 分鐘內，按「尋找小夥伴」，選擇 <b>Little Companion C5</b>。逾時可長按觸摸區約 2 秒，重新開放連線。</p></li><li><strong>確認授權，開始創作</strong><p>看到「已授權」即可控制。「記住這台吊飾的授權碼」勾選後，成功授權會記住在目前瀏覽器；下次開控制頁再尋找裝置即可。傳送時保持網頁在前景，等完成後再離開。</p></li></ol>
         <p>連線後，若 10 分鐘沒有上傳作品或同步清單，吊飾會關閉藍牙。這不會停止吊飾中已保存的播放內容。</p>
       </section>
       <section class="guide-section" id="pages"><p class="section-number">02 · FIND YOUR WAY</p><h2>認識八個分頁</h2>
@@ -115,6 +115,6 @@
   </div>
 </main>
 <footer><a href="#manual-title">回到頁首 ↑</a><span>小伴 · 線上使用說明</span></footer>
-<script type="module" src="./manual.js?v=1.0.0"></script>
+<script type="module" src="./manual.js?v=1.1.0"></script>
 </body>
 </html>

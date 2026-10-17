@@ -1,20 +1,20 @@
-import {supportsPlaylistRead,animationFrameIndex,catalogItems,playlistResponse,playlistKey,playlistDifference,playbackLabel} from './js/playlist-device.js?v=1.4.3';
-import {setupExperience} from './js/experience-ui.js?v=1.4.3';
-import {requireSyncCapacity} from './js/smart-sync.js?v=1.4.3';
-import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.4.3';
+import {supportsPlaylistRead,animationFrameIndex,catalogItems,playlistResponse,playlistKey,playlistDifference,playbackLabel} from './js/playlist-device.js?v=1.4.4';
+import {setupExperience} from './js/experience-ui.js?v=1.4.4';
+import {requireSyncCapacity} from './js/smart-sync.js?v=1.4.4';
+import {drawFrame,encodeOLA,decodeOLA,sampleImage,scalePixels,unpackPixels,validateAsset,FRAME_BYTES} from './js/media.js?v=1.4.4';
 import {EMOTIONS,emotionFrame} from './js/faces.js';
-import {validatePlaylist} from './js/protocol.js?v=1.4.3';
+import {validatePlaylist} from './js/protocol.js?v=1.4.4';
 import {DraftStore} from './js/storage.js';
-import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.4.3';
-import {CompanionBLE} from './js/ble.js?v=1.4.3';
-import {batteryLabel} from './js/battery.js?v=1.4.3';
-import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.4.3';
+import {storageUsage,memoryUsage} from './js/storage-info.js?v=1.4.4';
+import {CompanionBLE} from './js/ble.js?v=1.4.4';
+import {batteryLabel} from './js/battery.js?v=1.4.4';
+import {usbHostLabel,chargingLabel,powerSaveLabel,powerDetails} from './js/power.js?v=1.4.4';
 import {MediaConverter} from './js/converter.js';
-import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.4.3';
+import {watchPairingLinks,pairingAuthorizationForDevice,rememberVerifiedPairing} from './js/pairing.js?v=1.4.4';
 import {ownerPairingURL,drawPairingQR,resetReceiptMatches} from './js/administration.js';
-import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.4.3';
-import {createSubtitlePlayback,addSubtitleToPlaylistDraft} from './js/subtitle-playback.js?v=1.4.3';
-import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.4.3';
+import {DEFAULT_SUBTITLE,rasterizeSubtitle,subtitleFrame,subtitleThumbnail} from './js/subtitle.js?v=1.4.4';
+import {createSubtitlePlayback,addSubtitleToPlaylistDraft} from './js/subtitle-playback.js?v=1.4.4';
+import {saveSubtitleAsset} from './js/subtitle-library.js?v=1.4.4';
 
 const $=id=>document.getElementById(id),ble=new CompanionBLE(),store=new DraftStore();
 let finishStoreReady;const waitForStore=new Promise(resolve=>finishStoreReady=resolve);
@@ -39,6 +39,8 @@ function confirmAction(title,text,yes='確定刪除'){
 }
 function showTab(tab){activeTab=tab;document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==`view-${tab}`);document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current');});if(tab!=='playlist')previewRunning=false;if(tab!=='pixel')pixelPlaying=false;window.scrollTo({top:0,behavior:'instant'});}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>showTab(b.dataset.go));document.querySelector('.brand').onclick=e=>{e.preventDefault();showTab('emotion');};
+function openDeviceEntry(){if(location.hash==='#device')showTab('device');}
+window.addEventListener('hashchange',openDeviceEntry);openDeviceEntry();
 function persist(immediate=false){
   clearTimeout(saveTimer);$('pixel-save-state').textContent='草稿儲存中…';
   const save=()=>{
@@ -395,7 +397,9 @@ watchPairingLinks(window,pairing=>{
   $('auth-key').value=pairing.key;$('remember-key').checked=true;
   $('pairing-setup').hidden=false;
   $('pairing-message').textContent=browserSupported?'授權碼已自動填入。開啟吊飾，按「尋找小夥伴」即可自動授權；成功後會記住在這個瀏覽器。':'授權碼已自動填入。iPhone 請將下方完整配對網址貼進 Bluefy；成功授權後會記住在 Bluefy 裡。Android 可用 Chrome。';
-  $('pairing-handoff').hidden=browserSupported;
+  $('pairing-handoff').hidden=false;
+  $('copy-pairing-link').textContent='複製配對網址';
+  $('pairing-link-note').textContent='這是剛掃描的配對卡網址；可貼到 Bluefy 開啟。';
   $('pairing-link-fallback').hidden=true;$('pairing-link').value='';
   showTab('device');
   if(ble.connected){
@@ -433,7 +437,7 @@ async function connect(){
 }
 async function authorize(){
   const key=$('auth-key').value.trim(),revision=pairingRevision,info=ble.info,epoch=ble.connectionEpoch;
-  authorizationCount++;$('authorize-device').disabled=true;$('authorize-device').textContent='正在授權…';
+  authorizationCount++;$('authorize-device').disabled=true;$('authorize-device').textContent='正在授權…';$('copy-pairing-link').disabled=true;
   try{
     await ble.authorize(key);
     await waitForStore;
@@ -441,13 +445,19 @@ async function authorize(){
     const remember=$('remember-key').checked;let remembered=false,memoryFailed=false;
     if(storeReady)try{remembered=await rememberVerifiedPairing(store,ble,key,remember);}catch{memoryFailed=true;}
     if(revision!==pairingRevision||!ble.connected||ble.info!==info||ble.connectionEpoch!==epoch)return;
-    pairingKey=null;pairingDevice=null;pairingURL=null;$('pairing-link').value='';$('pairing-handoff').hidden=true;
+    // Keep only the just-verified device's handoff link in this tab's memory.
+    // A pending card for another device must not become its handoff link.
+    pairingKey=null;pairingDevice=null;pairingURL=ownerPairingURL({device:info.device_id,key},location.href);
+    $('pairing-link').value='';$('pairing-link-fallback').hidden=true;
+    $('pairing-setup').hidden=false;$('pairing-handoff').hidden=false;
+    $('copy-pairing-link').textContent=ble.role==='admin'?'複製管理員配對網址':'複製配對網址';
+    $('pairing-link-note').textContent=ble.role==='admin'?'這是管理員配對網址。交給朋友使用時，請在下方「管理員工具」取得一般配對 QR。':'這是已授權的這台吊飾的配對網址，可貼到另一台手機的 Bluefy。';
     const roleMessage=ble.role==='admin'?'管理員已授權。此授權碼在恢復出廠後仍有效。':'已連線並授權，可以傳送作品。';
     const memoryMessage=remembered?'已記住這台吊飾，下次在同一個瀏覽器按「尋找小夥伴」即可，不用再掃碼。':memoryFailed||remember&&!storeReady?'瀏覽器暫時無法更新授權碼記憶，下次請重新掃描小卡。':'下次使用時，請重新掃描小卡。';
     $('pairing-message').textContent=roleMessage+memoryMessage;
     $('auth-key').value='';toast(remembered?'已授權，並記住這台吊飾。':memoryFailed||remember&&!storeReady?'已授權，暫時無法記住授權碼。':roleMessage);
     await checkPendingReset();await refreshPowerState().catch(()=>{});await ble.refreshMemory().catch(()=>{});await experienceUI?.authorized().catch(e=>toast(e.message,true));await refreshPlayback().catch(()=>{});
-  }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';}
+  }finally{authorizationCount--;$('authorize-device').disabled=authorizationCount>0;$('authorize-device').textContent=authorizationCount?'正在授權…':'確認是我的小伴';$('copy-pairing-link').disabled=authorizationCount>0;}
 }
 bind('connect-top',()=>ble.connected?showTab('device'):connect());bind('connect-device',connect);bind('authorize-device',authorize);bind('disconnect-device',()=>ble.disconnect());
 ble.addEventListener('state',e=>{

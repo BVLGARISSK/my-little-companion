@@ -1,0 +1,36 @@
+{
+  "release_tag": "c5-v0.7.11",
+  "organized_date": "2026-10-18",
+  "hardware_verification_date": "2026-10-16",
+  "firmware": "0.7.11-c5",
+  "rollback": "0.7.10-c5",
+  "web": "1.4.4",
+  "manual": "1.7",
+  "application_offset": "0x10000",
+  "partition_scheme": "default_8MB",
+  "flash_bytes": 8388608,
+  "blank_board_ready": false,
+  "contains_device_credentials": false,
+  "dinosaur": false,
+  "binary_assets": [
+    {
+      "file": "LittleCompanionC5-0.7.11-app.bin",
+      "firmware": "0.7.11-c5",
+      "bytes": 1070672,
+      "sha256": "ed1fe78d8c9e446c15d6dbb9d1af752285264563110a3d7205d8a3397b25f564"
+    },
+    {
+      "file": "LittleCompanionC5-0.7.10-rollback-app.bin",
+      "firmware": "0.7.10-c5",
+      "bytes": 1065872,
+      "sha256": "6e1d8ea3a4dee3f48f78b612ba4b7d541f8e96a3c44f545d9ca9b45c25a6370d"
+    }
+  ],
+  "new_firmware_build_or_flash_during_organization": false,
+  "build_method": "Existing official compile database, same FQBN and SDK core/library cache, fresh application objects, official link and image recipes.",
+  "physical_wake_confirmed": true,
+  "full_deep_sleep_cycle_retested_in_0_7_11": false,
+  "actual_current_measurement_available": false,
+  "charging_status_wired": false,
+  "ota_implemented": false
+}

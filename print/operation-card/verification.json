@@ -1,0 +1,40 @@
+{
+  "card_mm": [
+    54,
+    74
+  ],
+  "paper_mm": [
+    210,
+    297
+  ],
+  "notch": {
+    "direction": "inward",
+    "diameter_mm": 14,
+    "depth_mm": 7
+  },
+  "copies_per_sheet": 4,
+  "pages": 2,
+  "duplex": "long-edge",
+  "scale_percent": 100,
+  "qr_payload": "https://quadcopteronline.org/manual/",
+  "qr_checks": [
+    {
+      "variant": "corners",
+      "decoded_manual_qr": 4,
+      "render_dpi": 180
+    },
+    {
+      "variant": "5mm",
+      "decoded_manual_qr": 4,
+      "render_dpi": 180
+    }
+  ],
+  "physical_print_verified": false,
+  "files_sha256": {
+    "operation-card-a4-4-corners.pdf": "ec8d11473e2a03aeca37b5a76eed2af1f404ea4111d96db901f5736139a50c1c",
+    "operation-card-a4-4-corners-5mm.pdf": "c1bd5ade7fa1e47c226ed75ae6cbbfc7dd85f31bacd9025aebbfffdfd019aefa",
+    "preview-corners.png": "7cedeb2d3b3276576774d2c2a88d17b78490d00cc6f484dd61b450b02bec4e65",
+    "preview-5mm.png": "e06ba6e7be9d9cb339c7428b7c9e3be8ba6f85bcde3c15bfd151aeed1ab9b7f9",
+    "print-instructions.txt": "73608f0e533f11701df2fb1f9f5136ff4fc8f0de3bd0ccd6b61bd8f44cf0642f"
+  }
+}

@@ -9,3 +9,12 @@ firmware/**/build/
 *.bin
 *.elf
 *.map
+
+# Device-local data and C5 build outputs
+firmware/**/binaries/
+firmware/**/private/
+__pycache__/
+*.pyc
+**/*pairing-private*
+**/*nvs-backup*
+**/*full-flash*

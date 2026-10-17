@@ -7,3 +7,10 @@
 *.json text eol=lf
 *.md text eol=lf
 *.cmd text eol=crlf
+
+*.cpp text eol=lf
+*.h text eol=lf
+*.ino text eol=lf
+*.ps1 text eol=lf
+*.pdf binary
+*.png binary

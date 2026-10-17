@@ -1,5 +1,8 @@
 # ESP32-S3 小伴韌體
 
+> 此目錄保留舊 ESP32-S3 版本。現行 XIAO ESP32-C5 0.7.11 原始碼與工具在 [c5/](c5/)，請勿把 S3 接腳或 BIN 套用到 C5。
+
+
 沿用已驗證的 16MB Flash ESP32-S3 與 SH1106 128×64 I²C OLED：SDA GPIO8、SCL GPIO9、VCC 3V3、GND GND，100kHz。USB 使用原板的 UART 連接方式，CDCOnBoot=Disabled，PSRAM 不啟用。
 
 ## 功能

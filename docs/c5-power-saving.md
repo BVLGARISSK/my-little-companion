@@ -1,6 +1,6 @@
 # C5 自動省電與電流量測
 
-適用：C5 韌體 0.6.0-c5、網頁 1.2.0。日期：2026-10-14（Asia/Taipei）。
+本頁記錄 C5 0.6.0／網頁 1.2.0 建立的省電機制與量測方法。現行 0.7.11／網頁 1.4.4 沿用並提供自訂時間／方案；以下 15 秒、60 秒、10 分鐘是預設值，自訂後以裝置設定為準。0.7.11 的實測範圍見[目前驗證紀錄](current-verification.md)。
 
 ## 使用行為
 
@@ -66,4 +66,4 @@ USB 必須拔掉，以單顆鋰電池供電。電流錶串在電池正極路徑�
 - [Seeed C5 接腳與深眠範例](https://wiki.seeedstudio.com/xiao_esp32c5_getting_started/)。C5 支援單腳深眠保持，不套用 S3 的全體 GPIO 保持 API。
 - [InvenSense MPU6050 低功耗 motion 設定流程，第 33 頁](https://dfimg.dfrobot.com/enshop/image/data/SEN0142/PS-MPU-6000A.pdf)。
 
-`firmware/Rollback-0.5.0.ps1` 只回寫先前應用程式，不擦作品／配對碼。保留 0.5.0 BIN、原套件與 S3 基線；新增的 NVS 省電開關會被舊版忽略。字幕 0.5.0 相容，不需要刪掉字幕作品再回滾。
+目前公開回滾基線為 0.7.10-c5，使用相同分區配置的 APP-only 更新，見[發布與回滾](release-c5.md)。早期 0.5.0 私人本機回滾工具不在本儲存庫，不作為現行操作入口。
